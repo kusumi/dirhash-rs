@@ -1,0 +1,20 @@
+[package]
+name = "dirhash-rs"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+getopts = "0.2"
+md-5 = "0.10.5"
+sha1 = "0.10.5"
+sha2 = "0.10.6"
+sha3 = "0.10.6"
+digest = "0.10.6"
+walkdir = "2.3.2"
+hex = "0.4.3"
+
+[features]
+squash1 = []
+squash2 = []
