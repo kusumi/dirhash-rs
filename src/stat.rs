@@ -16,6 +16,13 @@ pub struct Stat {
 }
 
 impl Stat {
+    #[allow(dead_code)]
+    fn new() -> Stat {
+        let mut stat = Stat { ..Stat::default() };
+        stat.init_stat();
+        stat
+    }
+
     pub fn init_stat(&mut self) {
         self.stat_regular.clear();
         self.stat_device.clear();
@@ -122,14 +129,8 @@ impl Stat {
 
         for v in l.iter() {
             let f = dir::get_real_path(v, dat);
-            let t1 = match util::get_raw_file_type(v) {
-                Ok(t) => t,
-                Err(e) => panic!("{}", e),
-            };
-            let t2 = match util::get_file_type(v) {
-                Ok(t) => t,
-                Err(e) => panic!("{}", e),
-            };
+            let t1 = util::get_raw_file_type(v);
+            let t2 = util::get_file_type(v);
             assert!(t2 != util::SYMLINK); // symlink chains resolved
             if t1 == util::SYMLINK {
                 assert!(dat.opt.ignore_symlink || t2 == util::DIR);
@@ -176,5 +177,69 @@ impl Stat {
 
     pub fn append_written_symlink(&mut self, written: u64) {
         self.written_symlink += written;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_num_stat_regular() {
+        // 0
+        let mut stat = super::Stat::new();
+        assert_eq!(stat.num_stat_regular(), 0);
+
+        // 0
+        stat.init_stat();
+        assert_eq!(stat.num_stat_regular(), 0);
+    }
+
+    #[test]
+    fn test_append_stat_regular() {
+        // 1
+        let mut stat = super::Stat::new();
+        stat.append_stat_regular("a");
+        assert_eq!(stat.num_stat_regular(), 1);
+        assert_eq!(stat.stat_regular[0], "a");
+
+        // 2
+        stat.append_stat_regular("b");
+        assert_eq!(stat.num_stat_regular(), 2);
+        assert_eq!(stat.stat_regular[0], "a");
+        assert_eq!(stat.stat_regular[1], "b");
+
+        // 3
+        stat.append_stat_regular("c");
+        assert_eq!(stat.num_stat_regular(), 3);
+        assert_eq!(stat.stat_regular[0], "a");
+        assert_eq!(stat.stat_regular[1], "b");
+        assert_eq!(stat.stat_regular[2], "c");
+
+        // 1
+        stat.init_stat();
+        stat.append_stat_regular("d");
+        assert_eq!(stat.num_stat_regular(), 1);
+        assert_eq!(stat.stat_regular[0], "d");
+    }
+
+    #[test]
+    fn test_num_written_regular() {
+        let mut stat = super::Stat::new();
+        assert_eq!(stat.num_written_regular(), 0);
+
+        stat.init_stat();
+        assert_eq!(stat.num_written_regular(), 0);
+    }
+
+    #[test]
+    fn test_append_written_regular() {
+        let mut stat = super::Stat::new();
+        stat.append_written_regular(9999999999);
+        assert_eq!(stat.num_written_regular(), 9999999999);
+
+        stat.append_written_regular(1);
+        assert_eq!(stat.num_written_regular(), 10000000000);
+
+        stat.init_stat();
+        assert_eq!(stat.num_written_regular(), 0);
     }
 }

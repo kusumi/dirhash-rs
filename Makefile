@@ -9,6 +9,10 @@ fmt:
 	git status
 clean:
 	cargo clean
+test1:
+	cargo test --features=squash1
+test2:
+	cargo test --features=squash2
 lint1:
 	cargo clippy --fix --features=squash1
 	git status

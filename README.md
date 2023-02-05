@@ -1,4 +1,4 @@
-dirhash-rs ([v0.1.0](https://github.com/kusumi/dirhash-rs/releases/tag/v0.1.0))
+dirhash-rs ([v0.1.1](https://github.com/kusumi/dirhash-rs/releases/tag/v0.1.1))
 ========
 
 ## About
@@ -29,9 +29,9 @@ or
     usage: ./target/debug/dirhash-rs [<options>] <paths>
     
     Options:
-            --hash_algo HASH_ALGO
-                            Hash algorithm to use
-            --hash_verify HEX_STRING
+            --hash_algo <string>
+                            Hash algorithm to use (default "sha256")
+            --hash_verify <string>
                             Message digest to verify in hex string
             --hash_only     Do not print file path
             --ignore_dot    Ignore entry starts with .

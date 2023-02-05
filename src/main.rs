@@ -17,7 +17,7 @@ mod squash2;
 #[cfg(feature = "squash2")]
 use squash2::*;
 
-const VERSION: [i32; 3] = [0, 1, 0];
+const VERSION: [i32; 3] = [0, 1, 1];
 
 #[derive(Debug)]
 struct UserOption {
@@ -91,12 +91,17 @@ fn main() {
     let progname = args[0].clone();
 
     let mut opts = getopts::Options::new();
-    opts.optopt("", "hash_algo", "Hash algorithm to use", "HASH_ALGO");
+    opts.optopt(
+        "",
+        "hash_algo",
+        "Hash algorithm to use (default \"sha256\")",
+        "<string>",
+    );
     opts.optopt(
         "",
         "hash_verify",
         "Message digest to verify in hex string",
-        "HEX_STRING",
+        "<string>",
     );
     opts.optflag("", "hash_only", "Do not print file path");
     opts.optflag("", "ignore_dot", "Ignore entry starts with .");
@@ -117,7 +122,7 @@ fn main() {
 
     let matches = match opts.parse(&args[1..]) {
         Ok(v) => v,
-        Err(e) => panic!("{}", e.to_string()),
+        Err(e) => panic!("{}", e),
     };
     if matches.opt_present("v") {
         print_version();

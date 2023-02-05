@@ -21,17 +21,13 @@ pub fn print_input(f: &str, dat: &mut crate::UserData) -> Result<(), std::io::Er
 
     // keep input prefix based on raw type
     match util::get_file_type(&f) {
-        Ok(v) => match v {
-            util::DIR => dat.input_prefix = f.clone(),
-            util::REG | util::DEVICE => dat.input_prefix = util::get_dirpath(&f)?,
-            _ => return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput)),
-        },
-        Err(e) => return Err(e),
+        util::DIR => dat.input_prefix = f.clone(),
+        util::REG | util::DEVICE => dat.input_prefix = util::get_dirpath(&f)?,
+        _ => return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput)),
     }
 
     // prefix is a directory
-    let t = util::get_file_type(dat.get_input_prefix())?;
-    assert!(t == util::DIR);
+    assert!(util::get_file_type(dat.get_input_prefix()) == util::DIR);
 
     // initialize global resource
     dat.stat.init_stat();
@@ -72,7 +68,7 @@ fn walk_directory(dirpath: &str, dat: &mut crate::UserData) -> Result<(), std::i
             Some(v) => v,
             None => return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput)),
         };
-        let mut t = util::get_raw_file_type(f)?;
+        let mut t = util::get_raw_file_type(f);
 
         if test_ignore_entry(f, t, dat) {
             dat.stat.append_stat_ignored(f);
@@ -104,7 +100,7 @@ fn walk_directory(dirpath: &str, dat: &mut crate::UserData) -> Result<(), std::i
                 } else {
                     x = String::from(f);
                 }
-                t = util::get_file_type(&x)?;
+                t = util::get_file_type(&x);
                 assert!(t != util::SYMLINK); // symlink chains resolved
             }
             _ => l = String::from(""),
