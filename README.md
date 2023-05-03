@@ -1,4 +1,4 @@
-dirhash-rs ([v0.1.1](https://github.com/kusumi/dirhash-rs/releases/tag/v0.1.1))
+dirhash-rs ([v0.1.2](https://github.com/kusumi/dirhash-rs/releases/tag/v0.1.2))
 ========
 
 ## About
@@ -25,33 +25,29 @@ or
 
 ## Usage
 
-    $ ./target/debug/dirhash-rs
-    usage: ./target/debug/dirhash-rs [<options>] <paths>
+    $ ./target/release/dirhash-rs
+    usage: ./target/release/dirhash-rs [<options>] <paths>
     
     Options:
             --hash_algo <string>
                             Hash algorithm to use (default "sha256")
             --hash_verify <string>
                             Message digest to verify in hex string
-            --hash_only     Do not print file path
-            --ignore_dot    Ignore entry starts with .
+            --hash_only     Do not print file paths
+            --ignore_dot    Ignore entries start with .
             --ignore_dot_dir
-                            Ignore directory starts with .
+                            Ignore directories start with .
             --ignore_dot_file
-                            Ignore file starts with .
+                            Ignore files start with .
             --ignore_symlink
-                            Ignore symbolic link
-            --lstat         Do not resolve symbolic link
-            --abs           Print file path in absolute path
+                            Ignore symbolic links
+            --lstat         Do not resolve symbolic links
+            --abs           Print file paths in absolute path
             --squash        Print squashed message digest instead of per file
             --verbose       Enable verbose print
             --debug         Enable debug print
         -v, --version       Print version and exit
-        -h, --help          print this help menu
-
-## Bug
-
-This program turned out to be much slower than the original golang implementation. I expected it to be at least as fast as golang.
+        -h, --help          Print usage and exit
 
 ## Resource
 

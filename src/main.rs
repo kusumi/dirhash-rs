@@ -17,7 +17,7 @@ mod squash2;
 #[cfg(feature = "squash2")]
 use squash2::*;
 
-const VERSION: [i32; 3] = [0, 1, 1];
+const VERSION: [i32; 3] = [0, 1, 2];
 
 #[derive(Debug)]
 struct UserOption {
@@ -38,7 +38,7 @@ struct UserOption {
 impl Default for UserOption {
     fn default() -> UserOption {
         UserOption {
-            hash_algo: "".to_string(),
+            hash_algo: "sha256".to_string(),
             hash_verify: "".to_string(),
             hash_only: false,
             ignore_dot: false,
@@ -103,13 +103,13 @@ fn main() {
         "Message digest to verify in hex string",
         "<string>",
     );
-    opts.optflag("", "hash_only", "Do not print file path");
-    opts.optflag("", "ignore_dot", "Ignore entry starts with .");
-    opts.optflag("", "ignore_dot_dir", "Ignore directory starts with .");
-    opts.optflag("", "ignore_dot_file", "Ignore file starts with .");
-    opts.optflag("", "ignore_symlink", "Ignore symbolic link");
-    opts.optflag("", "lstat", "Do not resolve symbolic link");
-    opts.optflag("", "abs", "Print file path in absolute path");
+    opts.optflag("", "hash_only", "Do not print file paths");
+    opts.optflag("", "ignore_dot", "Ignore entries start with .");
+    opts.optflag("", "ignore_dot_dir", "Ignore directories start with .");
+    opts.optflag("", "ignore_dot_file", "Ignore files start with .");
+    opts.optflag("", "ignore_symlink", "Ignore symbolic links");
+    opts.optflag("", "lstat", "Do not resolve symbolic links");
+    opts.optflag("", "abs", "Print file paths in absolute path");
     opts.optflag(
         "",
         "squash",
@@ -118,7 +118,7 @@ fn main() {
     opts.optflag("", "verbose", "Enable verbose print");
     opts.optflag("", "debug", "Enable debug print");
     opts.optflag("v", "version", "Print version and exit");
-    opts.optflag("h", "help", "print this help menu");
+    opts.optflag("h", "help", "Print usage and exit");
 
     let matches = match opts.parse(&args[1..]) {
         Ok(v) => v,
@@ -136,14 +136,12 @@ fn main() {
     let mut dat = UserData {
         ..Default::default()
     };
-    dat.opt.hash_algo = match matches.opt_str("hash_algo") {
-        Some(x) => x,
-        None => "sha256".to_string(),
-    };
-    dat.opt.hash_verify = match matches.opt_str("hash_verify") {
-        Some(x) => x,
-        None => "".to_string(),
-    };
+    if matches.opt_present("hash_algo") {
+        dat.opt.hash_algo = matches.opt_str("hash_algo").unwrap();
+    }
+    if matches.opt_present("hash_verify") {
+        dat.opt.hash_verify = matches.opt_str("hash_verify").unwrap();
+    }
     dat.opt.hash_only = matches.opt_present("hash_only");
     dat.opt.ignore_dot = matches.opt_present("ignore_dot");
     dat.opt.ignore_dot_dir = matches.opt_present("ignore_dot_dir");

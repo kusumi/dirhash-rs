@@ -196,11 +196,12 @@ fn print_byte(f: &str, inb: &[u8], dat: &crate::UserData) -> Result<(), std::io:
     if dat.opt.hash_only {
         println!("{}", hex_sum);
     } else {
+        let s = format!("[{}][v{}]", crate::SQUASH_LABEL, crate::SQUASH_VERSION);
         let realf = get_real_path(f, dat);
         if realf == "." {
-            println!("{}", hex_sum);
+            println!("{} {}", hex_sum, s);
         } else {
-            println!("{}", util::get_xsum_format_string(&realf, &hex_sum));
+            println!("{} {}", util::get_xsum_format_string(&realf, &hex_sum), s);
         }
     }
 

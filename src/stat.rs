@@ -3,16 +3,16 @@ use crate::util;
 
 #[derive(Debug, Default)]
 pub struct Stat {
-    pub stat_regular: Vec<String>, // hashed
-    pub stat_device: Vec<String>,  // hashed
-    pub stat_symlink: Vec<String>, // hashed
-    pub stat_unsupported: Vec<String>,
-    pub stat_invalid: Vec<String>,
-    pub stat_ignored: Vec<String>,
+    stat_regular: Vec<String>, // hashed
+    stat_device: Vec<String>,  // hashed
+    stat_symlink: Vec<String>, // hashed
+    stat_unsupported: Vec<String>,
+    stat_invalid: Vec<String>,
+    stat_ignored: Vec<String>,
 
-    pub written_regular: u64, // hashed
-    pub written_device: u64,  // hashed
-    pub written_symlink: u64, // hashed
+    written_regular: u64, // hashed
+    written_device: u64,  // hashed
+    written_symlink: u64, // hashed
 }
 
 impl Stat {

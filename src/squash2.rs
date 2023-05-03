@@ -1,9 +1,12 @@
 #[cfg(feature = "squash2")]
 use crate::hash;
 
+pub const SQUASH_LABEL: &str = "squash";
+pub const SQUASH_VERSION: i32 = 2;
+
 #[derive(Debug, Default)]
 pub struct Squash {
-    pub squash_buffer: Vec<u8>,
+    squash_buffer: Vec<u8>,
 }
 
 impl Squash {
