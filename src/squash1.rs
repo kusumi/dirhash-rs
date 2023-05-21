@@ -39,9 +39,8 @@ impl Squash {
         for v in self.squash_buffer.iter() {
             s.push(hash::get_hex_sum(v));
         }
-
         s.sort();
-        return s.join("").as_bytes().to_vec();
+        s.join("").as_bytes().to_vec()
     }
 }
 

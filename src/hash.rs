@@ -84,18 +84,18 @@ pub struct HashValue {
     pub written: u64,
 }
 
-pub fn get_file_hash(f: &str, hash_algo: &str) -> Result<HashValue, std::io::Error> {
+pub fn get_file_hash(f: &str, hash_algo: &str) -> std::io::Result<HashValue> {
     let fp = std::fs::File::open(f)?;
     let mut r = std::io::BufReader::new(fp);
     get_hash(&mut r, hash_algo)
 }
 
-pub fn get_byte_hash(s: &[u8], hash_algo: &str) -> Result<HashValue, std::io::Error> {
+pub fn get_byte_hash(s: &[u8], hash_algo: &str) -> std::io::Result<HashValue> {
     let mut r = std::io::BufReader::new(s);
     get_hash(&mut r, hash_algo)
 }
 
-pub fn get_string_hash(s: &str, hash_algo: &str) -> Result<HashValue, std::io::Error> {
+pub fn get_string_hash(s: &str, hash_algo: &str) -> std::io::Result<HashValue> {
     let mut r = std::io::BufReader::new(s.as_bytes());
     get_hash(&mut r, hash_algo)
 }
@@ -104,14 +104,11 @@ pub fn get_string_hash(s: &str, hash_algo: &str) -> Result<HashValue, std::io::E
 pub fn get_hash<R>(
     r: &mut std::io::BufReader<R>,
     hash_algo: &str,
-) -> Result<HashValue, std::io::Error>
+) -> std::io::Result<HashValue>
 where
     R: std::io::Read,
 */
-pub fn get_hash(
-    r: &mut impl std::io::BufRead,
-    hash_algo: &str,
-) -> Result<HashValue, std::io::Error> {
+pub fn get_hash(r: &mut impl std::io::BufRead, hash_algo: &str) -> std::io::Result<HashValue> {
     let mut h = new_hash(hash_algo);
     let mut written = 0;
 
@@ -206,11 +203,11 @@ mod tests {
         ];
         for x in alg_sum_list_1.iter() {
             match super::get_byte_hash(&[], x.hash_algo) {
-                Err(e) => panic!("{}", e),
                 Ok(v) => {
                     assert_eq!(v.written, 0);
                     assert_eq!(super::get_hex_sum(&v.b), x.hex_sum);
                 }
+                Err(e) => panic!("{}", e),
             }
         }
 
@@ -225,11 +222,11 @@ mod tests {
         let s = "A".repeat(1000000);
         for x in alg_sum_list_2.iter() {
             match super::get_byte_hash(s.as_bytes(), x.hash_algo) {
-                Err(e) => panic!("{}", e),
                 Ok(v) => {
                     assert_eq!(v.written, 1000000);
                     assert_eq!(super::get_hex_sum(&v.b), x.hex_sum);
                 }
+                Err(e) => panic!("{}", e),
             }
         }
     }
@@ -250,11 +247,11 @@ mod tests {
         ];
         for x in alg_sum_list_1.iter() {
             match super::get_string_hash("", x.hash_algo) {
-                Err(e) => panic!("{}", e),
                 Ok(v) => {
                     assert_eq!(v.written, 0);
                     assert_eq!(super::get_hex_sum(&v.b), x.hex_sum);
                 }
+                Err(e) => panic!("{}", e),
             }
         }
 
@@ -269,11 +266,11 @@ mod tests {
         let s = "A".repeat(1000000);
         for x in alg_sum_list_2.iter() {
             match super::get_string_hash(&s, x.hash_algo) {
-                Err(e) => panic!("{}", e),
                 Ok(v) => {
                     assert_eq!(v.written, 1000000);
                     assert_eq!(super::get_hex_sum(&v.b), x.hex_sum);
                 }
+                Err(e) => panic!("{}", e),
             }
         }
     }

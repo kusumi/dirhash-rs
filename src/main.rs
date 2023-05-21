@@ -17,7 +17,7 @@ mod squash2;
 #[cfg(feature = "squash2")]
 use squash2::*;
 
-const VERSION: [i32; 3] = [0, 1, 2];
+const VERSION: [i32; 3] = [0, 1, 3];
 
 #[derive(Debug)]
 struct UserOption {
@@ -120,10 +120,7 @@ fn main() {
     opts.optflag("v", "version", "Print version and exit");
     opts.optflag("h", "help", "Print usage and exit");
 
-    let matches = match opts.parse(&args[1..]) {
-        Ok(v) => v,
-        Err(e) => panic!("{}", e),
-    };
+    let matches = opts.parse(&args[1..]).unwrap();
     if matches.opt_present("v") {
         print_version();
         std::process::exit(1);
@@ -209,10 +206,7 @@ fn main() {
 
     let args = matches.free;
     for (i, x) in args.iter().enumerate() {
-        match dir::print_input(x, &mut dat) {
-            Ok(_v) => (),
-            Err(e) => panic!("{}: {}", stringify!(main), e),
-        }
+        dir::print_input(x, &mut dat).unwrap();
         if dat.opt.verbose && !args.is_empty() && i != args.len() - 1 {
             println!();
         }

@@ -1,5 +1,6 @@
 use crate::dir;
 use crate::util;
+use crate::UserData;
 
 #[derive(Debug, Default)]
 pub struct Stat {
@@ -93,60 +94,64 @@ impl Stat {
     pub fn append_stat_ignored(&mut self, f: &str) {
         self.stat_ignored.push(f.to_string());
     }
+}
 
-    // print stat
-    /*
-    pub fn print_stat_regular(&self, dat: &crate::UserData) {
-        self.print_stat(&self.stat_regular, util::REG_STR, dat);
+// print stat
+/*
+pub fn print_stat_regular(dat: &UserData) {
+    print_stat(&dat.stat.stat_regular, util::REG_STR, dat);
+}
+
+pub fn print_stat_device(dat: &UserData) {
+    print_stat(&dat.stat.stat_device, util::DEVICE_STR, dat);
+}
+
+pub fn print_stat_symlink(dat: &UserData) {
+    print_stat(&dat.stat.stat_symlink, util::SYMLINK_STR, dat);
+}
+*/
+
+pub fn print_stat_unsupported(dat: &UserData) -> std::io::Result<()> {
+    print_stat(&dat.stat.stat_unsupported, util::UNSUPPORTED_STR, dat)
+}
+
+pub fn print_stat_invalid(dat: &UserData) -> std::io::Result<()> {
+    print_stat(&dat.stat.stat_invalid, util::INVALID_STR, dat)
+}
+
+pub fn print_stat_ignored(dat: &UserData) -> std::io::Result<()> {
+    print_stat(&dat.stat.stat_ignored, "ignored file", dat)
+}
+
+fn print_stat(l: &Vec<String>, msg: &str, dat: &UserData) -> std::io::Result<()> {
+    if l.is_empty() {
+        return Ok(());
     }
+    util::print_num_format_string(l.len(), msg);
 
-    pub fn print_stat_device(&self, dat: &crate::UserData) {
-        self.print_stat(&self.stat_device, util::DEVICE_STR, dat);
-    }
-
-    pub fn print_stat_symlink(&self, dat: &crate::UserData) {
-        self.print_stat(&self.stat_symlink, util::SYMLINK_STR, dat);
-    }
-    */
-
-    pub fn print_stat_unsupported(&self, dat: &crate::UserData) {
-        self.print_stat(&self.stat_unsupported, util::UNSUPPORTED_STR, dat);
-    }
-
-    pub fn print_stat_invalid(&self, dat: &crate::UserData) {
-        self.print_stat(&self.stat_invalid, util::INVALID_STR, dat);
-    }
-
-    pub fn print_stat_ignored(&self, dat: &crate::UserData) {
-        self.print_stat(&self.stat_ignored, "ignored file", dat);
-    }
-
-    fn print_stat(&self, l: &Vec<String>, msg: &str, dat: &crate::UserData) {
-        if l.is_empty() {
-            return;
+    for v in l.iter() {
+        let f = dir::get_real_path(v, dat);
+        let t1 = util::get_raw_file_type(v)?;
+        let t2 = util::get_file_type(v)?;
+        assert!(t2 != util::SYMLINK); // symlink chains resolved
+        if t1 == util::SYMLINK {
+            assert!(dat.opt.ignore_symlink || t2 == util::DIR);
+            println!(
+                "{} ({} -> {})",
+                f,
+                util::get_file_type_string(t1),
+                util::get_file_type_string(t2)
+            );
+        } else {
+            assert!(t2 != util::DIR);
+            println!("{} ({})", f, util::get_file_type_string(t1));
         }
-        util::print_num_format_string(l.len(), msg);
-
-        for v in l.iter() {
-            let f = dir::get_real_path(v, dat);
-            let t1 = util::get_raw_file_type(v);
-            let t2 = util::get_file_type(v);
-            assert!(t2 != util::SYMLINK); // symlink chains resolved
-            if t1 == util::SYMLINK {
-                assert!(dat.opt.ignore_symlink || t2 == util::DIR);
-                println!(
-                    "{} ({} -> {})",
-                    f,
-                    util::get_file_type_string(t1),
-                    util::get_file_type_string(t2)
-                );
-            } else {
-                assert!(t2 != util::DIR);
-                println!("{} ({})", f, util::get_file_type_string(t1));
-            }
-        }
     }
 
+    Ok(())
+}
+
+impl Stat {
     // num written
     pub fn num_written_total(&self) -> u64 {
         self.num_written_regular() + self.num_written_device() + self.num_written_symlink()

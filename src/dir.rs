@@ -1,13 +1,15 @@
 use crate::hash;
+use crate::stat;
 use crate::util;
+use crate::UserData;
 
-impl crate::UserData {
+impl UserData {
     fn get_input_prefix(&self) -> &str {
         &self.input_prefix
     }
 }
 
-pub fn print_input(f: &str, dat: &mut crate::UserData) -> Result<(), std::io::Error> {
+pub fn print_input(f: &str, dat: &mut UserData) -> std::io::Result<()> {
     if dat.opt.debug {
         println!("{}: {}", stringify!(print_input), f);
     }
@@ -20,14 +22,17 @@ pub fn print_input(f: &str, dat: &mut crate::UserData) -> Result<(), std::io::Er
     assert_file_path(&f, dat);
 
     // keep input prefix based on raw type
-    match util::get_file_type(&f) {
-        util::DIR => dat.input_prefix = f.clone(),
-        util::REG | util::DEVICE => dat.input_prefix = util::get_dirpath(&f)?,
-        _ => return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput)),
-    }
+    dat.input_prefix = match util::get_file_type(&f) {
+        Ok(v) => match v {
+            util::DIR => f.clone(),
+            util::REG | util::DEVICE => util::get_dirpath(&f)?,
+            _ => return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput)),
+        },
+        Err(e) => return Err(e),
+    };
 
     // prefix is a directory
-    assert!(util::get_file_type(dat.get_input_prefix()) == util::DIR);
+    assert!(util::get_file_type(dat.get_input_prefix())? == util::DIR);
 
     // initialize global resource
     dat.stat.init_stat();
@@ -38,10 +43,10 @@ pub fn print_input(f: &str, dat: &mut crate::UserData) -> Result<(), std::io::Er
 
     // print various stats
     if dat.opt.verbose {
-        print_verbose_stat(dat);
+        print_verbose_stat(dat)?;
     }
-    dat.stat.print_stat_unsupported(dat);
-    dat.stat.print_stat_invalid(dat);
+    stat::print_stat_unsupported(dat)?;
+    stat::print_stat_invalid(dat)?;
 
     // print squash hash if specified
     if dat.opt.squash {
@@ -59,7 +64,7 @@ pub fn print_input(f: &str, dat: &mut crate::UserData) -> Result<(), std::io::Er
  * walkdir::WalkDir has different traversal order vs filepath.WalkDir,
  * hence squash2 hash won't match the original golang implementation.
  */
-fn walk_directory(dirpath: &str, dat: &mut crate::UserData) -> Result<(), std::io::Error> {
+fn walk_directory(dirpath: &str, dat: &mut UserData) -> std::io::Result<()> {
     for entry in walkdir::WalkDir::new(dirpath)
         .into_iter()
         .filter_map(|e| e.ok())
@@ -68,7 +73,7 @@ fn walk_directory(dirpath: &str, dat: &mut crate::UserData) -> Result<(), std::i
             Some(v) => v,
             None => return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput)),
         };
-        let mut t = util::get_raw_file_type(f);
+        let mut t = util::get_raw_file_type(f)?;
 
         if test_ignore_entry(f, t, dat) {
             dat.stat.append_stat_ignored(f);
@@ -76,9 +81,9 @@ fn walk_directory(dirpath: &str, dat: &mut crate::UserData) -> Result<(), std::i
         }
 
         // find target if symlink
-        let mut x = String::from(f);
-        let l: String; // symlink itself, not its target
-        match t {
+        let mut x = f.to_string();
+        let l = match t {
+            // symlink itself, not its target
             util::SYMLINK => {
                 if dat.opt.ignore_symlink {
                     dat.stat.append_stat_ignored(f);
@@ -90,7 +95,7 @@ fn walk_directory(dirpath: &str, dat: &mut crate::UserData) -> Result<(), std::i
                     }
                     continue;
                 }
-                l = String::from(f);
+                let l = f.to_string();
                 let tmp = util::read_link(f)?; // need tmp variable here
                 f = tmp.as_str();
                 if !util::is_abspath(f) {
@@ -98,37 +103,32 @@ fn walk_directory(dirpath: &str, dat: &mut crate::UserData) -> Result<(), std::i
                     x = util::join_path(&d, f).clone();
                     assert!(util::is_abspath(&x));
                 } else {
-                    x = String::from(f);
+                    x = f.to_string();
                 }
-                t = util::get_file_type(&x);
+                t = util::get_file_type(&x)?;
                 assert!(t != util::SYMLINK); // symlink chains resolved
+                l
             }
-            _ => l = String::from(""),
-        }
+            _ => "".to_string(),
+        };
 
-        let res = match t {
+        match t {
             /*
              * A regular directory isn't considered ignored,
              * then don't count symlink to directory as ignored.
              */
-            util::DIR => Ok(()),
-            util::REG | util::DEVICE => print_file(&x, &l, t, dat),
-            util::UNSUPPORTED => print_unsupported(&x, dat),
-            util::INVALID => print_invalid(&x, dat),
-            _ => {
-                util::panic_file_type(&x, "unknown", t);
-                Ok(())
-            }
+            util::DIR => (),
+            util::REG | util::DEVICE => print_file(&x, &l, t, dat)?,
+            util::UNSUPPORTED => print_unsupported(&x, dat)?,
+            util::INVALID => print_invalid(&x, dat)?,
+            _ => util::panic_file_type(&x, "unknown", t),
         };
-        if let Err(e) = res {
-            panic!("{}", e);
-        }
     }
 
     Ok(())
 }
 
-fn test_ignore_entry(f: &str, t: util::FileType, dat: &crate::UserData) -> bool {
+fn test_ignore_entry(f: &str, t: util::FileType, dat: &UserData) -> bool {
     assert!(util::is_abspath(f));
 
     // only non directory types count
@@ -156,31 +156,28 @@ fn test_ignore_entry(f: &str, t: util::FileType, dat: &crate::UserData) -> bool 
     }
 
     // ignore . entries if specified
-    if dat.opt.ignore_dot && (base_starts_with_dot || path_contains_slash_dot) {
-        return true;
-    }
-
-    false
+    dat.opt.ignore_dot && (base_starts_with_dot || path_contains_slash_dot)
 }
 
-pub fn get_real_path(f: &str, dat: &crate::UserData) -> String {
+pub fn get_real_path(f: &str, dat: &UserData) -> String {
+    let input_prefix = dat.get_input_prefix();
     if dat.opt.abs {
         assert!(util::is_abspath(f));
         f.to_string()
-    } else if f == dat.get_input_prefix() {
-        return ".".to_string();
-    } else if dat.get_input_prefix() == "/" {
-        return f[1..].to_string();
-    } else if f.starts_with(dat.get_input_prefix()) {
-        let f = &f[dat.get_input_prefix().len() + 1..];
+    } else if f == input_prefix {
+        ".".to_string()
+    } else if input_prefix == "/" {
+        f[1..].to_string()
+    } else if f.starts_with(input_prefix) {
+        let f = &f[input_prefix.len() + 1..];
         assert!(!f.starts_with('/'));
-        return f.to_string();
+        f.to_string()
     } else {
-        return f.to_string(); // f is probably symlink target
+        f.to_string() // f is probably symlink target
     }
 }
 
-fn print_byte(f: &str, inb: &[u8], dat: &crate::UserData) -> Result<(), std::io::Error> {
+fn print_byte(f: &str, inb: &[u8], dat: &UserData) -> std::io::Result<()> {
     assert_file_path(f, dat);
 
     // get hash value
@@ -208,12 +205,7 @@ fn print_byte(f: &str, inb: &[u8], dat: &crate::UserData) -> Result<(), std::io:
     Ok(())
 }
 
-fn print_file(
-    f: &str,
-    l: &str,
-    t: util::FileType,
-    dat: &mut crate::UserData,
-) -> Result<(), std::io::Error> {
+fn print_file(f: &str, l: &str, t: util::FileType, dat: &mut UserData) -> std::io::Result<()> {
     assert_file_path(f, dat);
     if !l.is_empty() {
         assert_file_path(f, dat);
@@ -259,7 +251,7 @@ fn print_file(
     } else {
         // make link -> target format if symlink
         let mut realf = get_real_path(f, dat);
-        let tmp = String::from(l); // need tmp variable here
+        let tmp = l.to_string(); // need tmp variable here
         let mut l = tmp.as_str();
         if !l.is_empty() {
             assert_file_path(l, dat);
@@ -281,7 +273,7 @@ fn print_file(
     Ok(())
 }
 
-fn print_symlink(f: &str, dat: &mut crate::UserData) -> Result<(), std::io::Error> {
+fn print_symlink(f: &str, dat: &mut UserData) -> std::io::Result<()> {
     assert_file_path(f, dat);
 
     // debug print first
@@ -330,7 +322,7 @@ fn print_symlink(f: &str, dat: &mut crate::UserData) -> Result<(), std::io::Erro
     Ok(())
 }
 
-fn print_unsupported(f: &str, dat: &mut crate::UserData) -> Result<(), std::io::Error> {
+fn print_unsupported(f: &str, dat: &mut UserData) -> std::io::Result<()> {
     if dat.opt.debug {
         print_debug(f, util::UNSUPPORTED, dat)?;
     }
@@ -339,7 +331,7 @@ fn print_unsupported(f: &str, dat: &mut crate::UserData) -> Result<(), std::io::
     Ok(())
 }
 
-fn print_invalid(f: &str, dat: &mut crate::UserData) -> Result<(), std::io::Error> {
+fn print_invalid(f: &str, dat: &mut UserData) -> std::io::Result<()> {
     if dat.opt.debug {
         print_debug(f, util::INVALID, dat)?;
     }
@@ -348,7 +340,7 @@ fn print_invalid(f: &str, dat: &mut crate::UserData) -> Result<(), std::io::Erro
     Ok(())
 }
 
-fn print_debug(f: &str, t: util::FileType, dat: &crate::UserData) -> Result<(), std::io::Error> {
+fn print_debug(f: &str, t: util::FileType, dat: &UserData) -> std::io::Result<()> {
     assert!(dat.opt.debug);
     let s = util::get_file_type_string(t);
     if dat.opt.abs {
@@ -360,8 +352,8 @@ fn print_debug(f: &str, t: util::FileType, dat: &crate::UserData) -> Result<(), 
     Ok(())
 }
 
-fn print_verbose_stat(dat: &crate::UserData) {
-    let indent = String::from(" ");
+fn print_verbose_stat(dat: &UserData) -> std::io::Result<()> {
+    let indent = " ";
 
     util::print_num_format_string(dat.stat.num_stat_total() as usize, "file");
     let a1 = dat.stat.num_stat_regular();
@@ -399,10 +391,10 @@ fn print_verbose_stat(dat: &crate::UserData) {
         util::print_num_format_string(b3 as usize, &format!("{} {}", util::SYMLINK_STR, "byte"));
     }
 
-    dat.stat.print_stat_ignored(dat);
+    stat::print_stat_ignored(dat)
 }
 
-fn assert_file_path(f: &str, dat: &crate::UserData) {
+fn assert_file_path(f: &str, dat: &UserData) {
     // must always handle file as abs
     assert!(util::is_abspath(f));
 
