@@ -4,16 +4,18 @@ use crate::UserData;
 
 #[derive(Debug, Default)]
 pub struct Stat {
-    stat_regular: Vec<String>, // hashed
-    stat_device: Vec<String>,  // hashed
-    stat_symlink: Vec<String>, // hashed
+    stat_directory: Vec<String>, // hashed
+    stat_regular: Vec<String>,   // hashed
+    stat_device: Vec<String>,    // hashed
+    stat_symlink: Vec<String>,   // hashed
     stat_unsupported: Vec<String>,
     stat_invalid: Vec<String>,
     stat_ignored: Vec<String>,
 
-    written_regular: u64, // hashed
-    written_device: u64,  // hashed
-    written_symlink: u64, // hashed
+    written_directory: u64, // hashed
+    written_regular: u64,   // hashed
+    written_device: u64,    // hashed
+    written_symlink: u64,   // hashed
 }
 
 impl Stat {
@@ -25,6 +27,7 @@ impl Stat {
     }
 
     pub fn init_stat(&mut self) {
+        self.stat_directory.clear();
         self.stat_regular.clear();
         self.stat_device.clear();
         self.stat_symlink.clear();
@@ -32,6 +35,7 @@ impl Stat {
         self.stat_invalid.clear();
         self.stat_ignored.clear();
 
+        self.written_directory = 0;
         self.written_regular = 0;
         self.written_device = 0;
         self.written_symlink = 0;
@@ -39,7 +43,14 @@ impl Stat {
 
     // num stat
     pub fn num_stat_total(&self) -> u64 {
-        self.num_stat_regular() + self.num_stat_device() + self.num_stat_symlink()
+        self.num_stat_directory()
+            + self.num_stat_regular()
+            + self.num_stat_device()
+            + self.num_stat_symlink()
+    }
+
+    pub fn num_stat_directory(&self) -> u64 {
+        self.stat_directory.len() as u64
     }
 
     pub fn num_stat_regular(&self) -> u64 {
@@ -54,22 +65,27 @@ impl Stat {
         self.stat_symlink.len() as u64
     }
 
-    /*
+    #[allow(dead_code)]
     pub fn num_stat_unsupported(&self) -> u64 {
         self.stat_unsupported.len() as u64
     }
 
+    #[allow(dead_code)]
     pub fn num_stat_invalid(&self) -> u64 {
         self.stat_invalid.len() as u64
     }
 
+    #[allow(dead_code)]
     pub fn num_stat_ignored(&self) -> u64 {
         self.stat_ignored.len() as u64
     }
-    */
 
     // append stat
     pub fn append_stat_total(&mut self) {}
+
+    pub fn append_stat_directory(&mut self, f: &str) {
+        self.stat_directory.push(f.to_string());
+    }
 
     pub fn append_stat_regular(&mut self, f: &str) {
         self.stat_regular.push(f.to_string());
@@ -97,19 +113,25 @@ impl Stat {
 }
 
 // print stat
-/*
-pub fn print_stat_regular(dat: &UserData) {
-    print_stat(&dat.stat.stat_regular, util::REG_STR, dat);
+#[allow(dead_code)]
+pub fn print_stat_directory(dat: &UserData) -> std::io::Result<()> {
+    print_stat(&dat.stat.stat_directory, util::DIR_STR, dat)
 }
 
-pub fn print_stat_device(dat: &UserData) {
-    print_stat(&dat.stat.stat_device, util::DEVICE_STR, dat);
+#[allow(dead_code)]
+pub fn print_stat_regular(dat: &UserData) -> std::io::Result<()> {
+    print_stat(&dat.stat.stat_regular, util::REG_STR, dat)
 }
 
-pub fn print_stat_symlink(dat: &UserData) {
-    print_stat(&dat.stat.stat_symlink, util::SYMLINK_STR, dat);
+#[allow(dead_code)]
+pub fn print_stat_device(dat: &UserData) -> std::io::Result<()> {
+    print_stat(&dat.stat.stat_device, util::DEVICE_STR, dat)
 }
-*/
+
+#[allow(dead_code)]
+pub fn print_stat_symlink(dat: &UserData) -> std::io::Result<()> {
+    print_stat(&dat.stat.stat_symlink, util::SYMLINK_STR, dat)
+}
 
 pub fn print_stat_unsupported(dat: &UserData) -> std::io::Result<()> {
     print_stat(&dat.stat.stat_unsupported, util::UNSUPPORTED_STR, dat)
@@ -131,11 +153,11 @@ fn print_stat(l: &Vec<String>, msg: &str, dat: &UserData) -> std::io::Result<()>
 
     for v in l.iter() {
         let f = dir::get_real_path(v, dat);
-        let t1 = util::get_raw_file_type(v)?;
-        let t2 = util::get_file_type(v)?;
+        let t1 = util::get_raw_file_type(v);
+        let t2 = util::get_file_type(v);
         assert!(t2 != util::SYMLINK); // symlink chains resolved
         if t1 == util::SYMLINK {
-            assert!(dat.opt.ignore_symlink || t2 == util::DIR);
+            assert!(dat.opt.ignore_symlink || t2 == util::DIR || t2 == util::INVALID);
             println!(
                 "{} ({} -> {})",
                 f,
@@ -154,7 +176,14 @@ fn print_stat(l: &Vec<String>, msg: &str, dat: &UserData) -> std::io::Result<()>
 impl Stat {
     // num written
     pub fn num_written_total(&self) -> u64 {
-        self.num_written_regular() + self.num_written_device() + self.num_written_symlink()
+        self.num_written_directory()
+            + self.num_written_regular()
+            + self.num_written_device()
+            + self.num_written_symlink()
+    }
+
+    pub fn num_written_directory(&self) -> u64 {
+        self.written_directory
     }
 
     pub fn num_written_regular(&self) -> u64 {
@@ -171,6 +200,10 @@ impl Stat {
 
     // append written
     pub fn append_written_total(&mut self, _written: u64) {}
+
+    pub fn append_written_directory(&mut self, written: u64) {
+        self.written_directory += written;
+    }
 
     pub fn append_written_regular(&mut self, written: u64) {
         self.written_regular += written;

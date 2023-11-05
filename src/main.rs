@@ -17,7 +17,7 @@ mod squash2;
 #[cfg(feature = "squash2")]
 use squash2::*;
 
-const VERSION: [i32; 3] = [0, 1, 3];
+const VERSION: [i32; 3] = [0, 4, 0];
 
 #[derive(Debug)]
 struct UserOption {
@@ -82,8 +82,10 @@ fn print_version() {
 }
 
 fn usage(progname: &str, opts: getopts::Options) {
-    let brief = format!("usage: {} [<options>] <paths>", progname);
-    print!("{}", opts.usage(&brief));
+    print!(
+        "{}",
+        opts.usage(&format!("usage: {} [<options>] <paths>", progname))
+    );
 }
 
 fn main() {
@@ -178,6 +180,8 @@ fn main() {
         dat.opt.hash_verify = s.to_string();
     }
 
+    // incompatible debug prints vs dirhash
+    /*
     if dat.opt.debug {
         println!("{}: {:?}", stringify!(main), dat);
         println!(
@@ -186,6 +190,7 @@ fn main() {
             hash::get_available_hash_algo()
         );
     }
+    */
 
     if cfg!(target_os = "windows") {
         assert!(util::is_windows());
@@ -194,7 +199,7 @@ fn main() {
     }
 
     let s = util::get_path_separator();
-    if s != "/" {
+    if s != '/' {
         println!("Invalid path separator {}", s);
         std::process::exit(1);
     }
@@ -206,7 +211,8 @@ fn main() {
 
     let args = matches.free;
     for (i, x) in args.iter().enumerate() {
-        dir::print_input(x, &mut dat).unwrap();
+        let f = util::canonicalize_path(x).unwrap();
+        dir::print_input(&f, &mut dat).unwrap();
         if dat.opt.verbose && !args.is_empty() && i != args.len() - 1 {
             println!();
         }

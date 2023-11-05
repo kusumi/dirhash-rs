@@ -10,10 +10,6 @@ impl UserData {
 }
 
 pub fn print_input(f: &str, dat: &mut UserData) -> std::io::Result<()> {
-    if dat.opt.debug {
-        println!("{}: {}", stringify!(print_input), f);
-    }
-
     // assert exists
     util::path_exists(f)?;
 
@@ -23,16 +19,13 @@ pub fn print_input(f: &str, dat: &mut UserData) -> std::io::Result<()> {
 
     // keep input prefix based on raw type
     dat.input_prefix = match util::get_file_type(&f) {
-        Ok(v) => match v {
-            util::DIR => f.clone(),
-            util::REG | util::DEVICE => util::get_dirpath(&f)?,
-            _ => return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput)),
-        },
-        Err(e) => return Err(e),
+        util::DIR => f.clone(),
+        util::REG | util::DEVICE => util::get_dirpath(&f)?,
+        _ => return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput)),
     };
 
     // prefix is a directory
-    assert!(util::get_file_type(dat.get_input_prefix())? == util::DIR);
+    assert!(util::get_file_type(dat.get_input_prefix()) == util::DIR);
 
     // initialize global resource
     dat.stat.init_stat();
@@ -69,11 +62,11 @@ fn walk_directory(dirpath: &str, dat: &mut UserData) -> std::io::Result<()> {
         .into_iter()
         .filter_map(|e| e.ok())
     {
-        let mut f = match entry.path().to_str() {
+        let f = match entry.path().to_str() {
             Some(v) => v,
             None => return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput)),
         };
-        let mut t = util::get_raw_file_type(f)?;
+        let mut t = util::get_raw_file_type(f);
 
         if test_ignore_entry(f, t, dat) {
             dat.stat.append_stat_ignored(f);
@@ -90,22 +83,17 @@ fn walk_directory(dirpath: &str, dat: &mut UserData) -> std::io::Result<()> {
                     continue;
                 }
                 if dat.opt.lstat {
-                    if let Err(e) = print_symlink(f, dat) {
-                        panic!("{}", e);
-                    }
+                    print_symlink(f, dat)?;
                     continue;
                 }
                 let l = f.to_string();
-                let tmp = util::read_link(f)?; // need tmp variable here
-                f = tmp.as_str();
-                if !util::is_abspath(f) {
-                    let d = util::get_dirpath(&l)?;
-                    x = util::join_path(&d, f).clone();
-                    assert!(util::is_abspath(&x));
-                } else {
-                    x = f.to_string();
+                x = util::canonicalize_path(f)?;
+                if x.is_empty() {
+                    print_invalid(&l, dat)?;
+                    continue;
                 }
-                t = util::get_file_type(&x)?;
+                assert!(util::is_abspath(&x));
+                t = util::get_file_type(&x);
                 assert!(t != util::SYMLINK); // symlink chains resolved
                 l
             }
@@ -117,7 +105,7 @@ fn walk_directory(dirpath: &str, dat: &mut UserData) -> std::io::Result<()> {
              * A regular directory isn't considered ignored,
              * then don't count symlink to directory as ignored.
              */
-            util::DIR => (),
+            util::DIR => handle_directory(&x, &l, dat)?,
             util::REG | util::DEVICE => print_file(&x, &l, t, dat)?,
             util::UNSUPPORTED => print_unsupported(&x, dat)?,
             util::INVALID => print_invalid(&x, dat)?,
@@ -159,21 +147,29 @@ fn test_ignore_entry(f: &str, t: util::FileType, dat: &UserData) -> bool {
     dat.opt.ignore_dot && (base_starts_with_dot || path_contains_slash_dot)
 }
 
-pub fn get_real_path(f: &str, dat: &UserData) -> String {
+pub fn trim_input_prefix<'a>(f: &'a str, dat: &'a UserData) -> &'a str {
+    let input_prefix = dat.get_input_prefix();
+    if f.starts_with(input_prefix) {
+        let f = &f[input_prefix.len() + 1..];
+        assert!(!f.starts_with('/'));
+        f
+    } else {
+        f
+    }
+}
+
+pub fn get_real_path<'a>(f: &'a str, dat: &'a UserData) -> &'a str {
     let input_prefix = dat.get_input_prefix();
     if dat.opt.abs {
         assert!(util::is_abspath(f));
-        f.to_string()
+        f
     } else if f == input_prefix {
-        ".".to_string()
+        "."
     } else if input_prefix == "/" {
-        f[1..].to_string()
-    } else if f.starts_with(input_prefix) {
-        let f = &f[input_prefix.len() + 1..];
-        assert!(!f.starts_with('/'));
-        f.to_string()
+        &f[1..]
     } else {
-        f.to_string() // f is probably symlink target
+        // f is probably symlink target if f unchanged
+        trim_input_prefix(f, dat)
     }
 }
 
@@ -193,13 +189,72 @@ fn print_byte(f: &str, inb: &[u8], dat: &UserData) -> std::io::Result<()> {
     if dat.opt.hash_only {
         println!("{}", hex_sum);
     } else {
+        // no space between two
         let s = format!("[{}][v{}]", crate::SQUASH_LABEL, crate::SQUASH_VERSION);
         let realf = get_real_path(f, dat);
         if realf == "." {
-            println!("{} {}", hex_sum, s);
+            println!("{}{}", hex_sum, s);
         } else {
-            println!("{} {}", util::get_xsum_format_string(&realf, &hex_sum), s);
+            println!("{}{}", util::get_xsum_format_string(realf, &hex_sum), s);
         }
+    }
+
+    Ok(())
+}
+
+fn handle_directory(f: &str, l: &str, dat: &mut UserData) -> std::io::Result<()> {
+    assert_file_path(f, dat);
+    if !l.is_empty() {
+        assert_file_path(l, dat);
+    }
+
+    // nothing to do if input is input prefix
+    if f == dat.get_input_prefix() {
+        return Ok(());
+    }
+
+    // nothing to do unless squash
+    if !dat.opt.squash {
+        return Ok(());
+    }
+
+    // debug print first
+    if dat.opt.debug {
+        print_debug(f, util::DIR, dat)?;
+    }
+
+    // get hash value
+    // path must be relative from input prefix
+    let s = trim_input_prefix(f, dat);
+    let hash::HashValue { b, written } = hash::get_string_hash(s, &dat.opt.hash_algo)?;
+    assert!(!b.is_empty());
+
+    // count this file
+    dat.stat.append_stat_total();
+    dat.stat.append_written_total(written);
+    dat.stat.append_stat_directory(f);
+    dat.stat.append_written_directory(written);
+
+    // squash
+    assert!(dat.opt.squash);
+    if dat.opt.hash_only {
+        dat.squash.update_squash_buffer(&b);
+    } else {
+        // make link -> target format if symlink
+        let mut realf = get_real_path(f, dat).to_string();
+        let tmp = l.to_string(); // need tmp variable here
+        let mut l = tmp.as_str();
+        if !l.is_empty() {
+            assert_file_path(l, dat);
+            if !dat.opt.abs {
+                l = trim_input_prefix(l, dat);
+                assert!(!l.starts_with('/'));
+            }
+            realf = format!("{} -> {}", l, realf);
+        }
+        let mut v = realf.as_bytes().to_vec();
+        v.extend(b);
+        dat.squash.update_squash_buffer(&v);
     }
 
     Ok(())
@@ -208,7 +263,7 @@ fn print_byte(f: &str, inb: &[u8], dat: &UserData) -> std::io::Result<()> {
 fn print_file(f: &str, l: &str, t: util::FileType, dat: &mut UserData) -> std::io::Result<()> {
     assert_file_path(f, dat);
     if !l.is_empty() {
-        assert_file_path(f, dat);
+        assert_file_path(l, dat);
     }
 
     // debug print first
@@ -250,13 +305,13 @@ fn print_file(f: &str, l: &str, t: util::FileType, dat: &mut UserData) -> std::i
         }
     } else {
         // make link -> target format if symlink
-        let mut realf = get_real_path(f, dat);
+        let mut realf = get_real_path(f, dat).to_string();
         let tmp = l.to_string(); // need tmp variable here
         let mut l = tmp.as_str();
         if !l.is_empty() {
             assert_file_path(l, dat);
-            if !dat.opt.abs && l.starts_with(dat.get_input_prefix()) {
-                l = &l[dat.get_input_prefix().len() + 1..];
+            if !dat.opt.abs {
+                l = trim_input_prefix(l, dat);
                 assert!(!l.starts_with('/'));
             }
             realf = format!("{} -> {}", l, realf);
@@ -282,6 +337,7 @@ fn print_symlink(f: &str, dat: &mut UserData) -> std::io::Result<()> {
     }
 
     // get a symlink string to get hash value
+    // must keep relative symlink path as is
     let s = util::read_link(f)?;
 
     // get hash value
@@ -315,7 +371,7 @@ fn print_symlink(f: &str, dat: &mut UserData) -> std::io::Result<()> {
             v.extend(b);
             dat.squash.update_squash_buffer(&v);
         } else {
-            println!("{}", util::get_xsum_format_string(&realf, &hex_sum));
+            println!("{}", util::get_xsum_format_string(realf, &hex_sum));
         }
     }
 
@@ -356,10 +412,15 @@ fn print_verbose_stat(dat: &UserData) -> std::io::Result<()> {
     let indent = " ";
 
     util::print_num_format_string(dat.stat.num_stat_total() as usize, "file");
+    let a0 = dat.stat.num_stat_directory();
     let a1 = dat.stat.num_stat_regular();
     let a2 = dat.stat.num_stat_device();
     let a3 = dat.stat.num_stat_symlink();
-    assert!(a1 + a2 + a3 == dat.stat.num_stat_total());
+    assert!(a0 + a1 + a2 + a3 == dat.stat.num_stat_total());
+    if a0 > 0 {
+        print!("{}", indent);
+        util::print_num_format_string(a0 as usize, util::DIR_STR);
+    }
     if a1 > 0 {
         print!("{}", indent);
         util::print_num_format_string(a1 as usize, util::REG_STR);
@@ -374,10 +435,15 @@ fn print_verbose_stat(dat: &UserData) -> std::io::Result<()> {
     }
 
     util::print_num_format_string(dat.stat.num_written_total() as usize, "byte");
+    let b0 = dat.stat.num_written_directory();
     let b1 = dat.stat.num_written_regular();
     let b2 = dat.stat.num_written_device();
     let b3 = dat.stat.num_written_symlink();
-    assert!(b1 + b2 + b3 == dat.stat.num_written_total());
+    assert!(b0 + b1 + b2 + b3 == dat.stat.num_written_total());
+    if b0 > 0 {
+        print!("{}", indent);
+        util::print_num_format_string(b0 as usize, &format!("{} {}", util::DIR_STR, "byte"));
+    }
     if b1 > 0 {
         print!("{}", indent);
         util::print_num_format_string(b1 as usize, &format!("{} {}", util::REG_STR, "byte"));
