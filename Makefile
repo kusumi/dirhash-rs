@@ -19,3 +19,6 @@ lint1:
 lint2:
 	cargo clippy --release --fix --features=squash2
 	git status
+
+xxx1:	fmt lint1 test1
+xxx2:	fmt lint2 test2

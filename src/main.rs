@@ -17,10 +17,10 @@ mod squash2;
 #[cfg(feature = "squash2")]
 use squash2::*;
 
-const VERSION: [i32; 3] = [0, 4, 0];
+const VERSION: [i32; 3] = [0, 4, 1];
 
 #[derive(Debug)]
-struct UserOption {
+struct Opt {
     hash_algo: String,
     hash_verify: String,
     hash_only: bool,
@@ -35,9 +35,9 @@ struct UserOption {
     debug: bool,
 }
 
-impl Default for UserOption {
-    fn default() -> UserOption {
-        UserOption {
+impl Default for Opt {
+    fn default() -> Opt {
+        Opt {
             hash_algo: "sha256".to_string(),
             hash_verify: "".to_string(),
             hash_only: false,
@@ -50,25 +50,6 @@ impl Default for UserOption {
             squash: false,
             verbose: false,
             debug: false,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct UserData {
-    opt: UserOption,
-    stat: stat::Stat,
-    squash: Squash,
-    input_prefix: String,
-}
-
-impl Default for UserData {
-    fn default() -> UserData {
-        UserData {
-            opt: UserOption::default(),
-            stat: stat::Stat::default(),
-            squash: Squash::default(),
-            input_prefix: "".to_string(),
         }
     }
 }
@@ -132,38 +113,38 @@ fn main() {
         std::process::exit(1);
     }
 
-    let mut dat = UserData {
+    let mut opt = Opt {
         ..Default::default()
     };
     if matches.opt_present("hash_algo") {
-        dat.opt.hash_algo = matches.opt_str("hash_algo").unwrap();
+        opt.hash_algo = matches.opt_str("hash_algo").unwrap();
     }
     if matches.opt_present("hash_verify") {
-        dat.opt.hash_verify = matches.opt_str("hash_verify").unwrap();
+        opt.hash_verify = matches.opt_str("hash_verify").unwrap();
     }
-    dat.opt.hash_only = matches.opt_present("hash_only");
-    dat.opt.ignore_dot = matches.opt_present("ignore_dot");
-    dat.opt.ignore_dot_dir = matches.opt_present("ignore_dot_dir");
-    dat.opt.ignore_dot_file = matches.opt_present("ignore_dot_file");
-    dat.opt.ignore_symlink = matches.opt_present("ignore_symlink");
-    dat.opt.lstat = matches.opt_present("lstat");
-    dat.opt.abs = matches.opt_present("abs");
-    dat.opt.squash = matches.opt_present("squash");
-    dat.opt.verbose = matches.opt_present("verbose");
-    dat.opt.debug = matches.opt_present("debug");
+    opt.hash_only = matches.opt_present("hash_only");
+    opt.ignore_dot = matches.opt_present("ignore_dot");
+    opt.ignore_dot_dir = matches.opt_present("ignore_dot_dir");
+    opt.ignore_dot_file = matches.opt_present("ignore_dot_file");
+    opt.ignore_symlink = matches.opt_present("ignore_symlink");
+    opt.lstat = matches.opt_present("lstat");
+    opt.abs = matches.opt_present("abs");
+    opt.squash = matches.opt_present("squash");
+    opt.verbose = matches.opt_present("verbose");
+    opt.debug = matches.opt_present("debug");
 
-    if dat.opt.hash_algo.is_empty() {
+    if opt.hash_algo.is_empty() {
         println!("No hash algorithm specified");
         std::process::exit(1);
     }
 
-    if dat.opt.verbose {
+    if opt.verbose {
         print_version();
-        println!("{}", dat.opt.hash_algo);
+        println!("{}", opt.hash_algo);
     }
 
-    if let hash::HashObj::None = hash::new_hash(&dat.opt.hash_algo) {
-        println!("Unsupported hash algorithm {}", dat.opt.hash_algo);
+    if hash::new_hash(&opt.hash_algo).is_err() {
+        println!("Unsupported hash algorithm {}", opt.hash_algo);
         println!(
             "Available hash algorithm {:?}",
             hash::get_available_hash_algo()
@@ -171,18 +152,18 @@ fn main() {
         std::process::exit(1);
     }
 
-    if !dat.opt.hash_verify.is_empty() {
-        let (s, valid) = util::is_valid_hexsum(&dat.opt.hash_verify);
+    if !opt.hash_verify.is_empty() {
+        let (s, valid) = util::is_valid_hexsum(&opt.hash_verify);
         if !valid {
-            println!("Invalid verify string {}", dat.opt.hash_verify);
+            println!("Invalid verify string {}", opt.hash_verify);
             std::process::exit(1);
         }
-        dat.opt.hash_verify = s.to_string();
+        opt.hash_verify = s.to_string();
     }
 
     // incompatible debug prints vs dirhash
     /*
-    if dat.opt.debug {
+    if opt.debug {
         println!("{}: {:?}", stringify!(main), dat);
         println!(
             "{}: {:?}",
@@ -211,9 +192,10 @@ fn main() {
 
     let args = matches.free;
     for (i, x) in args.iter().enumerate() {
-        let f = util::canonicalize_path(x).unwrap();
-        dir::print_input(&f, &mut dat).unwrap();
-        if dat.opt.verbose && !args.is_empty() && i != args.len() - 1 {
+        if let Err(e) = dir::print_input(&util::canonicalize_path(x).unwrap(), &opt) {
+            panic!("{}", e);
+        }
+        if opt.verbose && !args.is_empty() && i != args.len() - 1 {
             println!();
         }
     }

@@ -10,8 +10,7 @@ pub struct Squash {
 }
 
 impl Squash {
-    #[allow(dead_code)]
-    fn new() -> Squash {
+    pub fn new() -> Squash {
         let mut squash = Squash {
             ..Squash::default()
         };
@@ -23,16 +22,12 @@ impl Squash {
         self.squash_buffer.clear();
     }
 
-    pub fn update_squash_buffer(&mut self, b: &[u8]) {
+    pub fn update_squash_buffer(&mut self, b: &[u8]) -> std::io::Result<()> {
         // result depends on append order
         self.squash_buffer.extend(b);
-        match hash::get_byte_hash(&self.squash_buffer, hash::SHA1) {
-            Ok(v) => {
-                let hash::HashValue { b, .. } = v;
-                self.squash_buffer = b;
-            }
-            Err(e) => panic!("{}", e),
-        }
+        let hash::HashValue { b, .. } = hash::get_byte_hash(&self.squash_buffer, hash::SHA1)?;
+        self.squash_buffer = b;
+        Ok(())
     }
 
     pub fn get_squash_buffer(&self) -> Vec<u8> {
@@ -52,16 +47,24 @@ mod tests {
     fn test_update_squash_buffer() {
         let mut squash = super::Squash::new();
 
-        squash.update_squash_buffer(&[]);
+        if let Err(e) = squash.update_squash_buffer(&[]) {
+            panic!("{}", e);
+        }
         assert!(!squash.get_squash_buffer().is_empty());
 
-        squash.update_squash_buffer(&[]);
+        if let Err(e) = squash.update_squash_buffer(&[]) {
+            panic!("{}", e);
+        }
         assert!(!squash.get_squash_buffer().is_empty());
 
-        squash.update_squash_buffer("xxx".as_bytes());
+        if let Err(e) = squash.update_squash_buffer("xxx".as_bytes()) {
+            panic!("{}", e);
+        }
         assert!(!squash.get_squash_buffer().is_empty());
 
-        squash.update_squash_buffer("x".repeat(123456).as_bytes());
+        if let Err(e) = squash.update_squash_buffer("x".repeat(123456).as_bytes()) {
+            panic!("{}", e);
+        }
         assert!(!squash.get_squash_buffer().is_empty());
     }
 }

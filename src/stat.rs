@@ -1,6 +1,6 @@
 use crate::dir;
 use crate::util;
-use crate::UserData;
+use crate::Opt;
 
 #[derive(Debug, Default)]
 pub struct Stat {
@@ -19,8 +19,7 @@ pub struct Stat {
 }
 
 impl Stat {
-    #[allow(dead_code)]
-    fn new() -> Stat {
+    pub fn new() -> Stat {
         let mut stat = Stat { ..Stat::default() };
         stat.init_stat();
         stat
@@ -110,70 +109,70 @@ impl Stat {
     pub fn append_stat_ignored(&mut self, f: &str) {
         self.stat_ignored.push(f.to_string());
     }
-}
 
-// print stat
-#[allow(dead_code)]
-pub fn print_stat_directory(dat: &UserData) -> std::io::Result<()> {
-    print_stat(&dat.stat.stat_directory, util::DIR_STR, dat)
-}
-
-#[allow(dead_code)]
-pub fn print_stat_regular(dat: &UserData) -> std::io::Result<()> {
-    print_stat(&dat.stat.stat_regular, util::REG_STR, dat)
-}
-
-#[allow(dead_code)]
-pub fn print_stat_device(dat: &UserData) -> std::io::Result<()> {
-    print_stat(&dat.stat.stat_device, util::DEVICE_STR, dat)
-}
-
-#[allow(dead_code)]
-pub fn print_stat_symlink(dat: &UserData) -> std::io::Result<()> {
-    print_stat(&dat.stat.stat_symlink, util::SYMLINK_STR, dat)
-}
-
-pub fn print_stat_unsupported(dat: &UserData) -> std::io::Result<()> {
-    print_stat(&dat.stat.stat_unsupported, util::UNSUPPORTED_STR, dat)
-}
-
-pub fn print_stat_invalid(dat: &UserData) -> std::io::Result<()> {
-    print_stat(&dat.stat.stat_invalid, util::INVALID_STR, dat)
-}
-
-pub fn print_stat_ignored(dat: &UserData) -> std::io::Result<()> {
-    print_stat(&dat.stat.stat_ignored, "ignored file", dat)
-}
-
-fn print_stat(l: &Vec<String>, msg: &str, dat: &UserData) -> std::io::Result<()> {
-    if l.is_empty() {
-        return Ok(());
+    // print stat
+    #[allow(dead_code)]
+    pub fn print_stat_directory(&self, inp: &str, opt: &Opt) -> std::io::Result<()> {
+        self.print_stat(&self.stat_directory, util::DIR_STR, inp, opt)
     }
-    util::print_num_format_string(l.len(), msg);
 
-    for v in l.iter() {
-        let f = dir::get_real_path(v, dat);
-        let t1 = util::get_raw_file_type(v);
-        let t2 = util::get_file_type(v);
-        assert!(t2 != util::SYMLINK); // symlink chains resolved
-        if t1 == util::SYMLINK {
-            assert!(dat.opt.ignore_symlink || t2 == util::DIR || t2 == util::INVALID);
-            println!(
-                "{} ({} -> {})",
-                f,
-                util::get_file_type_string(t1),
-                util::get_file_type_string(t2)
-            );
-        } else {
-            assert!(t2 != util::DIR);
-            println!("{} ({})", f, util::get_file_type_string(t1));
+    #[allow(dead_code)]
+    pub fn print_stat_regular(&self, inp: &str, opt: &Opt) -> std::io::Result<()> {
+        self.print_stat(&self.stat_regular, util::REG_STR, inp, opt)
+    }
+
+    #[allow(dead_code)]
+    pub fn print_stat_device(&self, inp: &str, opt: &Opt) -> std::io::Result<()> {
+        self.print_stat(&self.stat_device, util::DEVICE_STR, inp, opt)
+    }
+
+    #[allow(dead_code)]
+    pub fn print_stat_symlink(&self, inp: &str, opt: &Opt) -> std::io::Result<()> {
+        self.print_stat(&self.stat_symlink, util::SYMLINK_STR, inp, opt)
+    }
+
+    pub fn print_stat_unsupported(&self, inp: &str, opt: &Opt) -> std::io::Result<()> {
+        self.print_stat(&self.stat_unsupported, util::UNSUPPORTED_STR, inp, opt)
+    }
+
+    pub fn print_stat_invalid(&self, inp: &str, opt: &Opt) -> std::io::Result<()> {
+        self.print_stat(&self.stat_invalid, util::INVALID_STR, inp, opt)
+    }
+
+    pub fn print_stat_ignored(&self, inp: &str, opt: &Opt) -> std::io::Result<()> {
+        self.print_stat(&self.stat_ignored, "ignored file", inp, opt)
+    }
+
+    fn print_stat(&self, l: &Vec<String>, msg: &str, inp: &str, opt: &Opt) -> std::io::Result<()> {
+        if l.is_empty() {
+            return Ok(());
         }
+        util::print_num_format_string(l.len(), msg);
+
+        for v in l.iter() {
+            let f = dir::get_real_path(v, inp, opt);
+            let t1 = util::get_raw_file_type(v)?;
+            let t2 = match util::get_file_type(v) {
+                Ok(v) => v,
+                Err(_) => util::INVALID, // e.g. broken symlink
+            };
+            assert!(t2 != util::SYMLINK); // symlink chains resolved
+            if t1 == util::SYMLINK {
+                assert!(opt.ignore_symlink || t2 == util::DIR || t2 == util::INVALID);
+                println!(
+                    "{} ({} -> {})",
+                    f,
+                    util::get_file_type_string(t1),
+                    util::get_file_type_string(t2)
+                );
+            } else {
+                assert!(t2 != util::DIR);
+                println!("{} ({})", f, util::get_file_type_string(t1));
+            }
+        }
+        Ok(())
     }
 
-    Ok(())
-}
-
-impl Stat {
     // num written
     pub fn num_written_total(&self) -> u64 {
         self.num_written_directory()

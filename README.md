@@ -1,4 +1,4 @@
-dirhash-rs ([v0.4.0](https://github.com/kusumi/dirhash-rs/releases/tag/v0.4.0))
+dirhash-rs ([v0.4.1](https://github.com/kusumi/dirhash-rs/releases/tag/v0.4.1))
 ========
 
 ## About
@@ -18,10 +18,6 @@ Recent version of Rust
 ## Build
 
     $ make
-
-or
-
-    $ gmake
 
 ## Usage
 
@@ -48,7 +44,3 @@ or
             --debug         Enable debug print
         -v, --version       Print version and exit
         -h, --help          Print usage and exit
-
-## Resource
-
-[https://github.com/kusumi/dirhash-rs](https://github.com/kusumi/dirhash-rs)

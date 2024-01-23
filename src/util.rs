@@ -43,14 +43,14 @@ pub fn get_abspath(f: &str) -> std::io::Result<String> {
 pub fn get_dirpath(f: &str) -> std::io::Result<String> {
     let p = std::path::Path::new(f)
         .parent()
-        .ok_or(std::io::Error::from(std::io::ErrorKind::NotFound))?;
+        .ok_or_else(|| std::io::Error::from(std::io::ErrorKind::NotFound))?;
     Ok(p.to_str().unwrap().to_string())
 }
 
 pub fn get_basename(f: &str) -> std::io::Result<String> {
     let s = std::path::Path::new(f)
         .file_name()
-        .ok_or(std::io::Error::from(std::io::ErrorKind::NotFound))?;
+        .ok_or_else(|| std::io::Error::from(std::io::ErrorKind::NotFound))?;
     Ok(s.to_str().unwrap().to_string())
 }
 
@@ -67,17 +67,17 @@ pub fn get_path_separator() -> char {
     std::path::MAIN_SEPARATOR
 }
 
-pub fn get_raw_file_type(f: &str) -> FileType {
+pub fn get_raw_file_type(f: &str) -> std::io::Result<FileType> {
     match std::fs::symlink_metadata(f) {
-        Ok(v) => get_mode_type(&v.file_type()),
-        Err(_) => INVALID,
+        Ok(v) => Ok(get_mode_type(&v.file_type())),
+        Err(e) => Err(e),
     }
 }
 
-pub fn get_file_type(f: &str) -> FileType {
+pub fn get_file_type(f: &str) -> std::io::Result<FileType> {
     match std::fs::metadata(f) {
-        Ok(v) => get_mode_type(&v.file_type()),
-        Err(_) => INVALID,
+        Ok(v) => Ok(get_mode_type(&v.file_type())),
+        Err(e) => Err(e),
     }
 }
 
@@ -220,15 +220,17 @@ mod tests {
         let dir_list = [".", "..", "/", "/dev"];
         for f in dir_list.iter() {
             match super::get_raw_file_type(f) {
-                super::DIR => (),
-                _ => panic!(),
+                Ok(v) => match v {
+                    super::DIR => (),
+                    x => panic!("{}", x),
+                },
+                Err(e) => panic!("{}", e),
             }
         }
         let invalid_list = ["", "516e7cb4-6ecf-11d6-8ff8-00022d09712b"];
         for f in invalid_list.iter() {
-            let t = super::get_raw_file_type(f);
-            if t != super::INVALID {
-                panic!("{}", t);
+            if let Ok(v) = super::get_raw_file_type(f) {
+                panic!("{}", v);
             }
         }
     }
@@ -238,15 +240,17 @@ mod tests {
         let dir_list = [".", "..", "/", "/dev"];
         for f in dir_list.iter() {
             match super::get_file_type(f) {
-                super::DIR => (),
-                _ => panic!(),
+                Ok(v) => match v {
+                    super::DIR => (),
+                    x => panic!("{}", x),
+                },
+                Err(e) => panic!("{}", e),
             }
         }
         let invalid_list = ["", "516e7cb4-6ecf-11d6-8ff8-00022d09712b"];
         for f in invalid_list.iter() {
-            let t = super::get_file_type(f);
-            if t != super::INVALID {
-                panic!("{}", t);
+            if let Ok(v) = super::get_file_type(f) {
+                panic!("{}", v);
             }
         }
     }
@@ -299,7 +303,7 @@ mod tests {
         let invalid_list = ["", "516e7cb4-6ecf-11d6-8ff8-00022d09712b"];
         for f in invalid_list.iter() {
             if super::path_exists(f).is_ok() {
-                panic!();
+                panic!("{}", f);
             }
         }
     }
