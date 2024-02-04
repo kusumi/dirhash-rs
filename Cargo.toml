@@ -1,6 +1,6 @@
 [package]
 name = "dirhash-rs"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -14,6 +14,7 @@ sha3 = "0.10.6"
 digest = "0.10.6"
 walkdir = "2.3.2"
 hex = "0.4.3"
+path-clean = "1.0.1"
 
 [features]
 squash1 = []

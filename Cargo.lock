@@ -48,12 +48,13 @@ dependencies = [
 
 [[package]]
 name = "dirhash-rs"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "digest",
  "getopts",
  "hex",
  "md-5",
+ "path-clean",
  "sha1",
  "sha2",
  "sha3",
@@ -96,9 +97,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.152"
+version = "0.2.153"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13e3bf6590cbc649f4d1a3eefc9d5d6eb746f5200ffb04e5e142700b8faa56e7"
+checksum = "9c198f91728a82281a64e1f4f9eeb25d82cb32a5de251c6bd1b5154d63a8e7bd"
 
 [[package]]
 name = "md-5"
@@ -109,6 +110,12 @@ dependencies = [
  "cfg-if",
  "digest",
 ]
+
+[[package]]
+name = "path-clean"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17359afc20d7ab31fdb42bb844c8b3bb1dabd7dcf7e68428492da7f16966fcef"
 
 [[package]]
 name = "same-file"

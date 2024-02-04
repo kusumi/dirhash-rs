@@ -1,4 +1,4 @@
-dirhash-rs ([v0.4.1](https://github.com/kusumi/dirhash-rs/releases/tag/v0.4.1))
+dirhash-rs ([v0.4.2](https://github.com/kusumi/dirhash-rs/releases/tag/v0.4.2))
 ========
 
 ## About
@@ -37,8 +37,11 @@ Recent version of Rust
                             Ignore files start with .
             --ignore_symlink
                             Ignore symbolic links
-            --lstat         Do not resolve symbolic links
+            --follow_symlink
+                            Follow symbolic links unless directory
             --abs           Print file paths in absolute path
+            --swap          Print file path first in each line
+            --sort          Print sorted file paths
             --squash        Print squashed message digest instead of per file
             --verbose       Enable verbose print
             --debug         Enable debug print

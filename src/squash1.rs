@@ -1,16 +1,16 @@
 #[cfg(feature = "squash1")]
 use crate::hash;
 
-pub const SQUASH_LABEL: &str = "squash";
-pub const SQUASH_VERSION: i32 = 1;
+pub(crate) const SQUASH_LABEL: &str = "squash";
+pub(crate) const SQUASH_VERSION: i32 = 1;
 
 #[derive(Debug, Default)]
-pub struct Squash {
+pub(crate) struct Squash {
     squash_buffer: Vec<Vec<u8>>,
 }
 
 impl Squash {
-    pub fn new() -> Squash {
+    pub(crate) fn new() -> Squash {
         let mut squash = Squash {
             ..Squash::default()
         };
@@ -18,17 +18,17 @@ impl Squash {
         squash
     }
 
-    pub fn init_squash_buffer(&mut self) {
+    pub(crate) fn init_squash_buffer(&mut self) {
         self.squash_buffer.clear();
     }
 
-    pub fn update_squash_buffer(&mut self, b: &[u8]) -> std::io::Result<()> {
+    pub(crate) fn update_squash_buffer(&mut self, b: &[u8]) -> std::io::Result<()> {
         let hash::HashValue { b, .. } = hash::get_byte_hash(b, hash::MD5)?;
         self.squash_buffer.push(b);
         Ok(())
     }
 
-    pub fn get_squash_buffer(&self) -> Vec<u8> {
+    pub(crate) fn get_squash_buffer(&self) -> Vec<u8> {
         // XXX directly sort Vec<Vec<u8>>
         let mut s = Vec::new();
         for v in self.squash_buffer.iter() {

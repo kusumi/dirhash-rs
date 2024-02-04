@@ -17,7 +17,7 @@ mod squash2;
 #[cfg(feature = "squash2")]
 use squash2::*;
 
-const VERSION: [i32; 3] = [0, 4, 1];
+const VERSION: [i32; 3] = [0, 4, 2];
 
 #[derive(Debug)]
 struct Opt {
@@ -28,8 +28,10 @@ struct Opt {
     ignore_dot_dir: bool,
     ignore_dot_file: bool,
     ignore_symlink: bool,
-    lstat: bool,
+    follow_symlink: bool,
     abs: bool,
+    swap: bool,
+    sort: bool,
     squash: bool,
     verbose: bool,
     debug: bool,
@@ -45,8 +47,10 @@ impl Default for Opt {
             ignore_dot_dir: false,
             ignore_dot_file: false,
             ignore_symlink: false,
-            lstat: false,
+            follow_symlink: false,
             abs: false,
+            swap: false,
+            sort: false,
             squash: false,
             verbose: false,
             debug: false,
@@ -91,8 +95,14 @@ fn main() {
     opts.optflag("", "ignore_dot_dir", "Ignore directories start with .");
     opts.optflag("", "ignore_dot_file", "Ignore files start with .");
     opts.optflag("", "ignore_symlink", "Ignore symbolic links");
-    opts.optflag("", "lstat", "Do not resolve symbolic links");
+    opts.optflag(
+        "",
+        "follow_symlink",
+        "Follow symbolic links unless directory",
+    );
     opts.optflag("", "abs", "Print file paths in absolute path");
+    opts.optflag("", "swap", "Print file path first in each line");
+    opts.optflag("", "sort", "Print sorted file paths");
     opts.optflag(
         "",
         "squash",
@@ -127,11 +137,18 @@ fn main() {
     opt.ignore_dot_dir = matches.opt_present("ignore_dot_dir");
     opt.ignore_dot_file = matches.opt_present("ignore_dot_file");
     opt.ignore_symlink = matches.opt_present("ignore_symlink");
-    opt.lstat = matches.opt_present("lstat");
+    opt.follow_symlink = matches.opt_present("follow_symlink");
     opt.abs = matches.opt_present("abs");
+    opt.swap = matches.opt_present("swap");
+    opt.sort = matches.opt_present("sort");
     opt.squash = matches.opt_present("squash");
     opt.verbose = matches.opt_present("verbose");
     opt.debug = matches.opt_present("debug");
+
+    if matches.free.is_empty() {
+        usage(&progname, opts);
+        std::process::exit(1);
+    }
 
     if opt.hash_algo.is_empty() {
         println!("No hash algorithm specified");
@@ -161,18 +178,6 @@ fn main() {
         opt.hash_verify = s.to_string();
     }
 
-    // incompatible debug prints vs dirhash
-    /*
-    if opt.debug {
-        println!("{}: {:?}", stringify!(main), dat);
-        println!(
-            "{}: {:?}",
-            stringify!(main),
-            hash::get_available_hash_algo()
-        );
-    }
-    */
-
     if cfg!(target_os = "windows") {
         assert!(util::is_windows());
         println!("Windows unsupported");
@@ -185,14 +190,9 @@ fn main() {
         std::process::exit(1);
     }
 
-    if matches.free.is_empty() {
-        usage(&progname, opts);
-        std::process::exit(1);
-    }
-
     let args = matches.free;
     for (i, x) in args.iter().enumerate() {
-        if let Err(e) = dir::print_input(&util::canonicalize_path(x).unwrap(), &opt) {
+        if let Err(e) = dir::print_input(x, &opt) {
             panic!("{}", e);
         }
         if opt.verbose && !args.is_empty() && i != args.len() - 1 {

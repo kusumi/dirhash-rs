@@ -6,18 +6,30 @@ use crate::Squash;
 use crate::SQUASH_LABEL;
 use crate::SQUASH_VERSION;
 
-pub fn print_input(f: &str, opt: &Opt) -> std::io::Result<()> {
-    // assert exists
-    util::path_exists(f)?;
+pub(crate) fn print_input(f: &str, opt: &Opt) -> std::io::Result<()> {
+    // keep symlink input as is
+    // XXX but unlike filepath.WalkDir, walkdir::WalkDir resolves symlink
+    let f = match util::get_raw_file_type(f)? {
+        util::SYMLINK => f.to_string(),
+        _ => {
+            let x = util::canonicalize_path(f)?;
+            if x.is_empty() {
+                return Ok(());
+            }
+            // assert exists
+            util::path_exists_or_error(&x)?;
+            x
+        }
+    };
 
     // convert input to abs first
-    let f = util::get_abspath(f)?;
+    let f = util::get_abspath(&f)?;
     assert_file_path(&f, "");
 
     // keep input prefix based on raw type
-    let inp = match util::get_file_type(&f)? {
+    let inp = match util::get_raw_file_type(&f)? {
         util::DIR => f.clone(),
-        util::REG | util::DEVICE => util::get_dirpath(&f)?,
+        util::REG | util::DEVICE | util::SYMLINK => util::get_dirpath(&f)?,
         _ => return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput)),
     };
 
@@ -50,63 +62,79 @@ pub fn print_input(f: &str, opt: &Opt) -> std::io::Result<()> {
 // walkdir::WalkDir has different traversal order vs filepath.WalkDir,
 // hence squash2 hash won't match the original golang implementation.
 fn walk_directory(
-    dirpath: &str,
+    f: &str,
     inp: &str,
     squ: &mut Squash,
     sta: &mut stat::Stat,
     opt: &Opt,
 ) -> std::io::Result<()> {
-    for entry in walkdir::WalkDir::new(dirpath)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
+    let mut l = vec![];
+    for entry in walkdir::WalkDir::new(f).into_iter().filter_map(|e| e.ok()) {
         let f = match entry.path().to_str() {
             Some(v) => v,
             None => return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput)),
         };
-        let mut t = util::get_raw_file_type(f)?;
-
-        if test_ignore_entry(f, t, opt) {
-            sta.append_stat_ignored(f);
-            continue;
+        if opt.sort {
+            l.push(f.to_string());
+        } else {
+            walk_directory_impl(f, inp, squ, sta, opt)?;
         }
+    }
+    if opt.sort {
+        l.sort();
+        for f in l.iter() {
+            walk_directory_impl(f, inp, squ, sta, opt)?;
+        }
+    }
+    Ok(())
+}
 
-        // find target if symlink
-        let mut x = f.to_string();
-        let l = match t {
-            // symlink itself, not its target
-            util::SYMLINK => {
-                if opt.ignore_symlink {
-                    sta.append_stat_ignored(f);
-                    continue;
-                }
-                if opt.lstat {
-                    print_symlink(f, inp, squ, sta, opt)?;
-                    continue;
-                }
-                let l = f.to_string();
-                x = util::canonicalize_path(f)?;
-                if x.is_empty() {
-                    print_invalid(&l, sta, opt)?;
-                    continue;
-                }
-                assert!(util::is_abspath(&x));
-                t = util::get_file_type(&x)?;
-                assert!(t != util::SYMLINK); // symlink chains resolved
-                l
+fn walk_directory_impl(
+    f: &str,
+    inp: &str,
+    squ: &mut Squash,
+    sta: &mut stat::Stat,
+    opt: &Opt,
+) -> std::io::Result<()> {
+    let mut t = util::get_raw_file_type(f)?;
+    if test_ignore_entry(f, t, opt) {
+        sta.append_stat_ignored(f);
+        return Ok(());
+    }
+
+    // find target if symlink
+    let mut x = f.to_string();
+    // symlink itself, not its target
+    let l = match t {
+        util::SYMLINK => {
+            if opt.ignore_symlink {
+                sta.append_stat_ignored(f);
+                return Ok(());
             }
-            _ => "".to_string(),
-        };
+            if !opt.follow_symlink {
+                print_symlink(f, inp, squ, sta, opt)?;
+                return Ok(());
+            }
+            let l = f.to_string();
+            x = util::canonicalize_path(f)?;
+            if x.is_empty() {
+                print_invalid(&l, sta, opt)?;
+                return Ok(());
+            }
+            assert!(util::is_abspath(&x));
+            t = util::get_file_type(&x)?;
+            assert!(t != util::SYMLINK); // symlink chains resolved
+            l
+        }
+        _ => "".to_string(),
+    };
 
-        match t {
-            // A regular directory isn't considered ignored,
-            // then don't count symlink to directory as ignored.
-            util::DIR => handle_directory(&x, &l, inp, squ, sta, opt)?,
-            util::REG | util::DEVICE => print_file(&x, &l, t, inp, squ, sta, opt)?,
-            util::UNSUPPORTED => print_unsupported(&x, sta, opt)?,
-            util::INVALID => print_invalid(&x, sta, opt)?,
-            _ => util::panic_file_type(&x, "unknown", t),
-        };
+    match t {
+        util::DIR => handle_directory(&x, &l, inp, squ, sta, opt)?,
+        util::REG | util::DEVICE => print_file(&x, &l, t, inp, squ, sta, opt)?,
+        util::UNSUPPORTED => print_unsupported(&x, sta, opt)?,
+        util::INVALID => print_invalid(&x, sta, opt)?,
+        _ => util::panic_file_type(&x, "unknown", t),
     }
     Ok(())
 }
@@ -142,7 +170,7 @@ fn test_ignore_entry(f: &str, t: util::FileType, opt: &Opt) -> bool {
     opt.ignore_dot && (base_starts_with_dot || path_contains_slash_dot)
 }
 
-fn trim_inp<'a>(f: &'a str, inp: &'a str) -> &'a str {
+fn trim_input_prefix<'a>(f: &'a str, inp: &'a str) -> &'a str {
     if f.starts_with(inp) {
         let f = &f[inp.len() + 1..];
         assert!(!f.starts_with('/'));
@@ -152,7 +180,7 @@ fn trim_inp<'a>(f: &'a str, inp: &'a str) -> &'a str {
     }
 }
 
-pub fn get_real_path<'a>(f: &'a str, inp: &'a str, opt: &'a Opt) -> &'a str {
+pub(crate) fn get_real_path<'a>(f: &'a str, inp: &'a str, opt: &'a Opt) -> &'a str {
     if opt.abs {
         assert!(util::is_abspath(f));
         f
@@ -162,7 +190,7 @@ pub fn get_real_path<'a>(f: &'a str, inp: &'a str, opt: &'a Opt) -> &'a str {
         &f[1..]
     } else {
         // f is probably symlink target if f unchanged
-        trim_inp(f, inp)
+        trim_input_prefix(f, inp)
     }
 }
 
@@ -188,16 +216,20 @@ fn print_byte(f: &str, inb: &[u8], inp: &str, opt: &Opt) -> std::io::Result<()> 
         if realf == "." {
             println!("{}{}", hex_sum, s);
         } else {
-            println!("{}{}", util::get_xsum_format_string(realf, &hex_sum), s);
+            println!(
+                "{}{}",
+                util::get_xsum_format_string(realf, &hex_sum, opt.swap),
+                s
+            );
         }
     }
     Ok(())
 }
 
-fn handle_directory(
+fn handle_directory<'a>(
     f: &str,
-    l: &str,
-    inp: &str,
+    mut l: &'a str,
+    inp: &'a str,
     squ: &mut Squash,
     sta: &mut stat::Stat,
     opt: &Opt,
@@ -224,7 +256,7 @@ fn handle_directory(
 
     // get hash value
     // path must be relative from input prefix
-    let s = trim_inp(f, inp);
+    let s = trim_input_prefix(f, inp);
     let hash::HashValue { b, written } = hash::get_string_hash(s, &opt.hash_algo)?;
     assert!(!b.is_empty());
 
@@ -241,12 +273,10 @@ fn handle_directory(
     } else {
         // make link -> target format if symlink
         let mut realf = get_real_path(f, inp, opt).to_string();
-        let tmp = l.to_string(); // need tmp variable here
-        let mut l = tmp.as_str();
         if !l.is_empty() {
             assert_file_path(l, inp);
             if !opt.abs {
-                l = trim_inp(l, inp);
+                l = trim_input_prefix(l, inp);
                 assert!(!l.starts_with('/'));
             }
             realf = format!("{} -> {}", l, realf);
@@ -258,11 +288,11 @@ fn handle_directory(
     Ok(())
 }
 
-fn print_file(
+fn print_file<'a>(
     f: &str,
-    l: &str,
+    mut l: &'a str,
     t: util::FileType,
-    inp: &str,
+    inp: &'a str,
     squ: &mut Squash,
     sta: &mut stat::Stat,
     opt: &Opt,
@@ -312,12 +342,10 @@ fn print_file(
     } else {
         // make link -> target format if symlink
         let mut realf = get_real_path(f, inp, opt).to_string();
-        let tmp = l.to_string(); // need tmp variable here
-        let mut l = tmp.as_str();
         if !l.is_empty() {
             assert_file_path(l, inp);
             if !opt.abs {
-                l = trim_inp(l, inp);
+                l = trim_input_prefix(l, inp);
                 assert!(!l.starts_with('/'));
             }
             realf = format!("{} -> {}", l, realf);
@@ -327,7 +355,10 @@ fn print_file(
             v.extend(b);
             squ.update_squash_buffer(&v)?;
         } else {
-            println!("{}", util::get_xsum_format_string(&realf, &hex_sum));
+            println!(
+                "{}",
+                util::get_xsum_format_string(&realf, &hex_sum, opt.swap)
+            );
         }
     }
     Ok(())
@@ -382,7 +413,10 @@ fn print_symlink(
             v.extend(b);
             squ.update_squash_buffer(&v)?;
         } else {
-            println!("{}", util::get_xsum_format_string(realf, &hex_sum));
+            println!(
+                "{}",
+                util::get_xsum_format_string(realf, &hex_sum, opt.swap)
+            );
         }
     }
     Ok(())

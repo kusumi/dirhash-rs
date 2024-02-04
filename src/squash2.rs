@@ -1,16 +1,16 @@
 #[cfg(feature = "squash2")]
 use crate::hash;
 
-pub const SQUASH_LABEL: &str = "squash";
-pub const SQUASH_VERSION: i32 = 2;
+pub(crate) const SQUASH_LABEL: &str = "squash";
+pub(crate) const SQUASH_VERSION: i32 = 2;
 
 #[derive(Debug, Default)]
-pub struct Squash {
+pub(crate) struct Squash {
     squash_buffer: Vec<u8>,
 }
 
 impl Squash {
-    pub fn new() -> Squash {
+    pub(crate) fn new() -> Squash {
         let mut squash = Squash {
             ..Squash::default()
         };
@@ -18,11 +18,11 @@ impl Squash {
         squash
     }
 
-    pub fn init_squash_buffer(&mut self) {
+    pub(crate) fn init_squash_buffer(&mut self) {
         self.squash_buffer.clear();
     }
 
-    pub fn update_squash_buffer(&mut self, b: &[u8]) -> std::io::Result<()> {
+    pub(crate) fn update_squash_buffer(&mut self, b: &[u8]) -> std::io::Result<()> {
         // result depends on append order
         self.squash_buffer.extend(b);
         let hash::HashValue { b, .. } = hash::get_byte_hash(&self.squash_buffer, hash::SHA1)?;
@@ -30,7 +30,7 @@ impl Squash {
         Ok(())
     }
 
-    pub fn get_squash_buffer(&self) -> Vec<u8> {
+    pub(crate) fn get_squash_buffer(&self) -> Vec<u8> {
         self.squash_buffer.clone()
     }
 }

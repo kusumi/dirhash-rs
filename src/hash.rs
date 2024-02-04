@@ -1,21 +1,21 @@
 use digest::Digest;
 
-pub const MD5: &str = "md5";
-pub const SHA1: &str = "sha1";
-pub const SHA224: &str = "sha224";
-pub const SHA256: &str = "sha256";
-pub const SHA384: &str = "sha384";
-pub const SHA512: &str = "sha512";
-pub const SHA512_224: &str = "sha512_224";
-pub const SHA512_256: &str = "sha512_256";
-pub const SHA3_224: &str = "sha3_224";
-pub const SHA3_256: &str = "sha3_256";
-pub const SHA3_384: &str = "sha3_384";
-pub const SHA3_512: &str = "sha3_512";
+pub(crate) const MD5: &str = "md5";
+pub(crate) const SHA1: &str = "sha1";
+pub(crate) const SHA224: &str = "sha224";
+pub(crate) const SHA256: &str = "sha256";
+pub(crate) const SHA384: &str = "sha384";
+pub(crate) const SHA512: &str = "sha512";
+pub(crate) const SHA512_224: &str = "sha512_224";
+pub(crate) const SHA512_256: &str = "sha512_256";
+pub(crate) const SHA3_224: &str = "sha3_224";
+pub(crate) const SHA3_256: &str = "sha3_256";
+pub(crate) const SHA3_384: &str = "sha3_384";
+pub(crate) const SHA3_512: &str = "sha3_512";
 
 const BUFFER_SIZE: usize = 65536;
 
-pub fn get_available_hash_algo() -> [&'static str; 12] {
+pub(crate) fn get_available_hash_algo() -> [&'static str; 12] {
     [
         MD5, SHA1, SHA224, SHA256, SHA384, SHA512, SHA512_224, SHA512_256, SHA3_224, SHA3_256,
         SHA3_384, SHA3_512,
@@ -23,7 +23,7 @@ pub fn get_available_hash_algo() -> [&'static str; 12] {
 }
 
 #[derive(Debug)]
-pub enum HashObj {
+pub(crate) enum HashObj {
     MD5(md5::Md5),
     SHA1(sha1::Sha1),
     SHA224(sha2::Sha224),
@@ -38,7 +38,7 @@ pub enum HashObj {
     SHA3_512(sha3::Sha3_512),
 }
 
-pub fn new_hash(hash_algo: &str) -> std::io::Result<HashObj> {
+pub(crate) fn new_hash(hash_algo: &str) -> std::io::Result<HashObj> {
     Ok(match hash_algo {
         MD5 => HashObj::MD5(md5::Md5::new()),
         SHA1 => HashObj::SHA1(sha1::Sha1::new()),
@@ -57,35 +57,38 @@ pub fn new_hash(hash_algo: &str) -> std::io::Result<HashObj> {
 }
 
 #[derive(Debug)]
-pub struct HashValue {
-    pub b: Vec<u8>,
-    pub written: u64,
+pub(crate) struct HashValue {
+    pub(crate) b: Vec<u8>,
+    pub(crate) written: u64,
 }
 
-pub fn get_file_hash(f: &str, hash_algo: &str) -> std::io::Result<HashValue> {
+pub(crate) fn get_file_hash(f: &str, hash_algo: &str) -> std::io::Result<HashValue> {
     let mut r = std::io::BufReader::new(std::fs::File::open(f)?);
     get_hash(&mut r, hash_algo)
 }
 
-pub fn get_byte_hash(s: &[u8], hash_algo: &str) -> std::io::Result<HashValue> {
+pub(crate) fn get_byte_hash(s: &[u8], hash_algo: &str) -> std::io::Result<HashValue> {
     let mut r = std::io::BufReader::new(s);
     get_hash(&mut r, hash_algo)
 }
 
-pub fn get_string_hash(s: &str, hash_algo: &str) -> std::io::Result<HashValue> {
+pub(crate) fn get_string_hash(s: &str, hash_algo: &str) -> std::io::Result<HashValue> {
     let mut r = std::io::BufReader::new(s.as_bytes());
     get_hash(&mut r, hash_algo)
 }
 
 /* XXX which style to use ?
-pub fn get_hash<R>(
+pub(crate) fn get_hash<R>(
     r: &mut std::io::BufReader<R>,
     hash_algo: &str,
 ) -> std::io::Result<HashValue>
 where
     R: std::io::Read,
 */
-pub fn get_hash(r: &mut impl std::io::BufRead, hash_algo: &str) -> std::io::Result<HashValue> {
+pub(crate) fn get_hash(
+    r: &mut impl std::io::BufRead,
+    hash_algo: &str,
+) -> std::io::Result<HashValue> {
     let mut h = new_hash(hash_algo)?;
     let mut written = 0;
 
@@ -136,7 +139,7 @@ pub fn get_hash(r: &mut impl std::io::BufRead, hash_algo: &str) -> std::io::Resu
     })
 }
 
-pub fn get_hex_sum(sum: &Vec<u8>) -> String {
+pub(crate) fn get_hex_sum(sum: &Vec<u8>) -> String {
     hex::encode(sum)
 }
 
