@@ -8,16 +8,16 @@ mod util;
 mod squash1;
 
 #[cfg(feature = "squash1")]
-use squash1::*;
+use squash1::{Squash, SQUASH_LABEL, SQUASH_VERSION};
 
 // squash2
 #[cfg(feature = "squash2")]
 mod squash2;
 
 #[cfg(feature = "squash2")]
-use squash2::*;
+use squash2::{Squash, SQUASH_LABEL, SQUASH_VERSION};
 
-const VERSION: [i32; 3] = [0, 4, 2];
+const VERSION: [i32; 3] = [0, 4, 3];
 
 #[derive(Debug)]
 struct Opt {
@@ -38,10 +38,10 @@ struct Opt {
 }
 
 impl Default for Opt {
-    fn default() -> Opt {
-        Opt {
+    fn default() -> Self {
+        Self {
             hash_algo: "sha256".to_string(),
-            hash_verify: "".to_string(),
+            hash_verify: String::new(),
             hash_only: false,
             ignore_dot: false,
             ignore_dot_dir: false,
@@ -66,10 +66,10 @@ fn print_version() {
     println!("{}", get_version_string());
 }
 
-fn usage(progname: &str, opts: getopts::Options) {
+fn usage(progname: &str, opts: &getopts::Options) {
     print!(
         "{}",
-        opts.usage(&format!("usage: {} [<options>] <paths>", progname))
+        opts.usage(&format!("usage: {progname} [<options>] <paths>"))
     );
 }
 
@@ -119,7 +119,7 @@ fn main() {
         std::process::exit(1);
     }
     if matches.opt_present("h") {
-        usage(&progname, opts);
+        usage(&progname, &opts);
         std::process::exit(1);
     }
 
@@ -146,7 +146,7 @@ fn main() {
     opt.debug = matches.opt_present("debug");
 
     if matches.free.is_empty() {
-        usage(&progname, opts);
+        usage(&progname, &opts);
         std::process::exit(1);
     }
 
@@ -186,7 +186,7 @@ fn main() {
 
     let s = util::get_path_separator();
     if s != '/' {
-        println!("Invalid path separator {}", s);
+        println!("Invalid path separator {s}");
         std::process::exit(1);
     }
 

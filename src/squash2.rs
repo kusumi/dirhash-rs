@@ -10,9 +10,9 @@ pub(crate) struct Squash {
 }
 
 impl Squash {
-    pub(crate) fn new() -> Squash {
-        let mut squash = Squash {
-            ..Squash::default()
+    pub(crate) fn new() -> Self {
+        let mut squash = Self {
+            ..Default::default()
         };
         squash.init_squash_buffer();
         squash
@@ -25,7 +25,7 @@ impl Squash {
     pub(crate) fn update_squash_buffer(&mut self, b: &[u8]) -> std::io::Result<()> {
         // result depends on append order
         self.squash_buffer.extend(b);
-        let hash::HashValue { b, .. } = hash::get_byte_hash(&self.squash_buffer, hash::SHA1)?;
+        let (b, ..) = hash::get_byte_hash(&self.squash_buffer, hash::SHA1)?;
         self.squash_buffer = b;
         Ok(())
     }
@@ -62,7 +62,7 @@ mod tests {
         }
         assert!(!squash.get_squash_buffer().is_empty());
 
-        if let Err(e) = squash.update_squash_buffer("x".repeat(123456).as_bytes()) {
+        if let Err(e) = squash.update_squash_buffer("x".repeat(123_456).as_bytes()) {
             panic!("{}", e);
         }
         assert!(!squash.get_squash_buffer().is_empty());

@@ -9,17 +9,16 @@ use crate::SQUASH_VERSION;
 pub(crate) fn print_input(f: &str, opt: &Opt) -> std::io::Result<()> {
     // keep symlink input as is
     // XXX but unlike filepath.WalkDir, walkdir::WalkDir resolves symlink
-    let f = match util::get_raw_file_type(f)? {
-        util::SYMLINK => f.to_string(),
-        _ => {
-            let x = util::canonicalize_path(f)?;
-            if x.is_empty() {
-                return Ok(());
-            }
-            // assert exists
-            util::path_exists_or_error(&x)?;
-            x
+    let f = if util::get_raw_file_type(f)? == util::SYMLINK {
+        f.to_string()
+    } else {
+        let x = util::canonicalize_path(f)?;
+        if x.is_empty() {
+            return Ok(());
         }
+        // assert exists
+        util::path_exists_or_error(&x)?;
+        x
     };
 
     // convert input to abs first
@@ -69,10 +68,12 @@ fn walk_directory(
     opt: &Opt,
 ) -> std::io::Result<()> {
     let mut l = vec![];
-    for entry in walkdir::WalkDir::new(f).into_iter().filter_map(|e| e.ok()) {
-        let f = match entry.path().to_str() {
-            Some(v) => v,
-            None => return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput)),
+    for entry in walkdir::WalkDir::new(f)
+        .into_iter()
+        .filter_map(std::result::Result::ok)
+    {
+        let Some(f) = entry.path().to_str() else {
+            return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput));
         };
         if opt.sort {
             l.push(f.to_string());
@@ -82,7 +83,7 @@ fn walk_directory(
     }
     if opt.sort {
         l.sort();
-        for f in l.iter() {
+        for f in &l {
             walk_directory_impl(f, inp, squ, sta, opt)?;
         }
     }
@@ -126,7 +127,7 @@ fn walk_directory_impl(
             assert!(t != util::SYMLINK); // symlink chains resolved
             l
         }
-        _ => "".to_string(),
+        _ => String::new(),
     };
 
     match t {
@@ -198,7 +199,7 @@ fn print_byte(f: &str, inb: &[u8], inp: &str, opt: &Opt) -> std::io::Result<()> 
     assert_file_path(f, inp);
 
     // get hash value
-    let hash::HashValue { b, .. } = hash::get_byte_hash(inb, &opt.hash_algo)?;
+    let (b, ..) = hash::get_byte_hash(inb, &opt.hash_algo)?;
     assert!(!b.is_empty());
     let hex_sum = hash::get_hex_sum(&b);
 
@@ -208,13 +209,13 @@ fn print_byte(f: &str, inb: &[u8], inp: &str, opt: &Opt) -> std::io::Result<()> 
     }
 
     if opt.hash_only {
-        println!("{}", hex_sum);
+        println!("{hex_sum}");
     } else {
         // no space between two
-        let s = format!("[{}][v{}]", SQUASH_LABEL, SQUASH_VERSION);
+        let s = format!("[{SQUASH_LABEL}][v{SQUASH_VERSION}]");
         let realf = get_real_path(f, inp, opt);
         if realf == "." {
-            println!("{}{}", hex_sum, s);
+            println!("{hex_sum}{s}");
         } else {
             println!(
                 "{}{}",
@@ -228,7 +229,7 @@ fn print_byte(f: &str, inb: &[u8], inp: &str, opt: &Opt) -> std::io::Result<()> 
 
 fn handle_directory<'a>(
     f: &str,
-    mut l: &'a str,
+    l: &'a str,
     inp: &'a str,
     squ: &mut Squash,
     sta: &mut stat::Stat,
@@ -257,7 +258,7 @@ fn handle_directory<'a>(
     // get hash value
     // path must be relative from input prefix
     let s = trim_input_prefix(f, inp);
-    let hash::HashValue { b, written } = hash::get_string_hash(s, &opt.hash_algo)?;
+    let (b, written) = hash::get_string_hash(s, &opt.hash_algo)?;
     assert!(!b.is_empty());
 
     // count this file
@@ -275,11 +276,12 @@ fn handle_directory<'a>(
         let mut realf = get_real_path(f, inp, opt).to_string();
         if !l.is_empty() {
             assert_file_path(l, inp);
+            let mut l = l;
             if !opt.abs {
                 l = trim_input_prefix(l, inp);
                 assert!(!l.starts_with('/'));
             }
-            realf = format!("{} -> {}", l, realf);
+            realf = format!("{l} -> {realf}");
         }
         let mut v = realf.as_bytes().to_vec();
         v.extend(b);
@@ -290,7 +292,7 @@ fn handle_directory<'a>(
 
 fn print_file<'a>(
     f: &str,
-    mut l: &'a str,
+    l: &'a str,
     t: util::FileType,
     inp: &'a str,
     squ: &mut Squash,
@@ -308,7 +310,7 @@ fn print_file<'a>(
     }
 
     // get hash value
-    let hash::HashValue { b, written } = hash::get_file_hash(f, &opt.hash_algo)?;
+    let (b, written) = hash::get_file_hash(f, &opt.hash_algo)?;
     assert!(!b.is_empty());
     let hex_sum = hash::get_hex_sum(&b);
 
@@ -337,18 +339,19 @@ fn print_file<'a>(
         if opt.squash {
             squ.update_squash_buffer(&b)?;
         } else {
-            println!("{}", hex_sum);
+            println!("{hex_sum}");
         }
     } else {
         // make link -> target format if symlink
         let mut realf = get_real_path(f, inp, opt).to_string();
         if !l.is_empty() {
             assert_file_path(l, inp);
+            let mut l = l;
             if !opt.abs {
                 l = trim_input_prefix(l, inp);
                 assert!(!l.starts_with('/'));
             }
-            realf = format!("{} -> {}", l, realf);
+            realf = format!("{l} -> {realf}");
         }
         if opt.squash {
             let mut v = realf.as_bytes().to_vec();
@@ -383,7 +386,7 @@ fn print_symlink(
     let s = util::read_link(f)?;
 
     // get hash value
-    let hash::HashValue { b, written } = hash::get_string_hash(&s, &opt.hash_algo)?;
+    let (b, written) = hash::get_string_hash(&s, &opt.hash_algo)?;
     assert!(!b.is_empty());
     let hex_sum = hash::get_hex_sum(&b);
 
@@ -403,7 +406,7 @@ fn print_symlink(
         if opt.squash {
             squ.update_squash_buffer(&b)?;
         } else {
-            println!("{}", hex_sum);
+            println!("{hex_sum}");
         }
     } else {
         // hash value is from s, but print realf path for clarity
@@ -426,7 +429,6 @@ fn print_unsupported(f: &str, sta: &mut stat::Stat, opt: &Opt) -> std::io::Resul
     if opt.debug {
         print_debug(f, util::UNSUPPORTED, opt)?;
     }
-
     sta.append_stat_unsupported(f);
     Ok(())
 }
@@ -435,7 +437,6 @@ fn print_invalid(f: &str, sta: &mut stat::Stat, opt: &Opt) -> std::io::Result<()
     if opt.debug {
         print_debug(f, util::INVALID, opt)?;
     }
-
     sta.append_stat_invalid(f);
     Ok(())
 }
@@ -446,7 +447,7 @@ fn print_debug(f: &str, t: util::FileType, opt: &Opt) -> std::io::Result<()> {
     if opt.abs {
         println!("### {} {}", util::get_abspath(f)?, s);
     } else {
-        println!("### {} {}", f, s);
+        println!("### {f} {s}");
     }
     Ok(())
 }
@@ -454,50 +455,50 @@ fn print_debug(f: &str, t: util::FileType, opt: &Opt) -> std::io::Result<()> {
 fn print_verbose_stat(inp: &str, sta: &mut stat::Stat, opt: &Opt) -> std::io::Result<()> {
     let indent = " ";
 
-    util::print_num_format_string(sta.num_stat_total() as usize, "file");
+    util::print_num_format_string(sta.num_stat_total(), "file");
     let a0 = sta.num_stat_directory();
     let a1 = sta.num_stat_regular();
     let a2 = sta.num_stat_device();
     let a3 = sta.num_stat_symlink();
     assert!(a0 + a1 + a2 + a3 == sta.num_stat_total());
     if a0 > 0 {
-        print!("{}", indent);
-        util::print_num_format_string(a0 as usize, util::DIR_STR);
+        print!("{indent}");
+        util::print_num_format_string(a0, util::DIR_STR);
     }
     if a1 > 0 {
-        print!("{}", indent);
-        util::print_num_format_string(a1 as usize, util::REG_STR);
+        print!("{indent}");
+        util::print_num_format_string(a1, util::REG_STR);
     }
     if a2 > 0 {
-        print!("{}", indent);
-        util::print_num_format_string(a2 as usize, util::DEVICE_STR);
+        print!("{indent}");
+        util::print_num_format_string(a2, util::DEVICE_STR);
     }
     if a3 > 0 {
-        print!("{}", indent);
-        util::print_num_format_string(a3 as usize, util::SYMLINK_STR);
+        print!("{indent}");
+        util::print_num_format_string(a3, util::SYMLINK_STR);
     }
 
-    util::print_num_format_string(sta.num_written_total() as usize, "byte");
+    util::print_num_format_string(sta.num_written_total(), "byte");
     let b0 = sta.num_written_directory();
     let b1 = sta.num_written_regular();
     let b2 = sta.num_written_device();
     let b3 = sta.num_written_symlink();
     assert!(b0 + b1 + b2 + b3 == sta.num_written_total());
     if b0 > 0 {
-        print!("{}", indent);
-        util::print_num_format_string(b0 as usize, &format!("{} {}", util::DIR_STR, "byte"));
+        print!("{indent}");
+        util::print_num_format_string(b0, &format!("{} {}", util::DIR_STR, "byte"));
     }
     if b1 > 0 {
-        print!("{}", indent);
-        util::print_num_format_string(b1 as usize, &format!("{} {}", util::REG_STR, "byte"));
+        print!("{indent}");
+        util::print_num_format_string(b1, &format!("{} {}", util::REG_STR, "byte"));
     }
     if b2 > 0 {
-        print!("{}", indent);
-        util::print_num_format_string(b2 as usize, &format!("{} {}", util::DEVICE_STR, "byte"));
+        print!("{indent}");
+        util::print_num_format_string(b2, &format!("{} {}", util::DEVICE_STR, "byte"));
     }
     if b3 > 0 {
-        print!("{}", indent);
-        util::print_num_format_string(b3 as usize, &format!("{} {}", util::SYMLINK_STR, "byte"));
+        print!("{indent}");
+        util::print_num_format_string(b3, &format!("{} {}", util::SYMLINK_STR, "byte"));
     }
 
     sta.print_stat_ignored(inp, opt)

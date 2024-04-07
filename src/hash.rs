@@ -56,23 +56,17 @@ pub(crate) fn new_hash(hash_algo: &str) -> std::io::Result<HashObj> {
     })
 }
 
-#[derive(Debug)]
-pub(crate) struct HashValue {
-    pub(crate) b: Vec<u8>,
-    pub(crate) written: u64,
-}
-
-pub(crate) fn get_file_hash(f: &str, hash_algo: &str) -> std::io::Result<HashValue> {
+pub(crate) fn get_file_hash(f: &str, hash_algo: &str) -> std::io::Result<(Vec<u8>, u64)> {
     let mut r = std::io::BufReader::new(std::fs::File::open(f)?);
     get_hash(&mut r, hash_algo)
 }
 
-pub(crate) fn get_byte_hash(s: &[u8], hash_algo: &str) -> std::io::Result<HashValue> {
+pub(crate) fn get_byte_hash(s: &[u8], hash_algo: &str) -> std::io::Result<(Vec<u8>, u64)> {
     let mut r = std::io::BufReader::new(s);
     get_hash(&mut r, hash_algo)
 }
 
-pub(crate) fn get_string_hash(s: &str, hash_algo: &str) -> std::io::Result<HashValue> {
+pub(crate) fn get_string_hash(s: &str, hash_algo: &str) -> std::io::Result<(Vec<u8>, u64)> {
     let mut r = std::io::BufReader::new(s.as_bytes());
     get_hash(&mut r, hash_algo)
 }
@@ -81,14 +75,14 @@ pub(crate) fn get_string_hash(s: &str, hash_algo: &str) -> std::io::Result<HashV
 pub(crate) fn get_hash<R>(
     r: &mut std::io::BufReader<R>,
     hash_algo: &str,
-) -> std::io::Result<HashValue>
+) -> std::io::Result<(Vec<u8>, u64)>
 where
     R: std::io::Read,
 */
 pub(crate) fn get_hash(
     r: &mut impl std::io::BufRead,
     hash_algo: &str,
-) -> std::io::Result<HashValue> {
+) -> std::io::Result<(Vec<u8>, u64)> {
     let mut h = new_hash(hash_algo)?;
     let mut written = 0;
 
@@ -103,7 +97,6 @@ pub(crate) fn get_hash(
         };
         let b = &buf[..ret];
         written += b.len();
-
         match h {
             HashObj::MD5(ref mut v) => v.update(b),
             HashObj::SHA1(ref mut v) => v.update(b),
@@ -120,8 +113,8 @@ pub(crate) fn get_hash(
         }
     }
 
-    Ok(HashValue {
-        b: match h {
+    Ok((
+        match h {
             HashObj::MD5(v) => v.finalize()[..].to_vec(),
             HashObj::SHA1(v) => v.finalize()[..].to_vec(),
             HashObj::SHA224(v) => v.finalize()[..].to_vec(),
@@ -135,8 +128,8 @@ pub(crate) fn get_hash(
             HashObj::SHA3_384(v) => v.finalize()[..].to_vec(),
             HashObj::SHA3_512(v) => v.finalize()[..].to_vec(),
         },
-        written: written as u64,
-    })
+        written.try_into().unwrap(),
+    ))
 }
 
 pub(crate) fn get_hex_sum(sum: &Vec<u8>) -> String {
@@ -147,16 +140,16 @@ pub(crate) fn get_hex_sum(sum: &Vec<u8>) -> String {
 mod tests {
     #[test]
     fn test_new_hash() {
-        for s in super::get_available_hash_algo().iter() {
+        for s in &super::get_available_hash_algo() {
             if let Err(e) = super::new_hash(s) {
-                panic!("{:?}", e);
+                panic!("{e:?}");
             }
         }
 
         let invalid_list = ["", "xxx", "SHA256", "516e7cb4-6ecf-11d6-8ff8-00022d09712b"];
-        for s in invalid_list.iter() {
+        for s in &invalid_list {
             if let Ok(v) = super::new_hash(s) {
-                panic!("{:?}", v);
+                panic!("{v:?}");
             }
         }
     }
@@ -175,11 +168,11 @@ mod tests {
             H { hash_algo: super::SHA384, hex_sum: "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b", },
             H { hash_algo: super::SHA512, hex_sum: "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e", },
         ];
-        for x in alg_sum_list_1.iter() {
+        for x in &alg_sum_list_1 {
             match super::get_byte_hash(&[], x.hash_algo) {
                 Ok(v) => {
-                    assert_eq!(v.written, 0);
-                    assert_eq!(super::get_hex_sum(&v.b), x.hex_sum);
+                    assert_eq!(super::get_hex_sum(&v.0), x.hex_sum);
+                    assert_eq!(v.1, 0);
                 }
                 Err(e) => panic!("{}", e),
             }
@@ -193,12 +186,12 @@ mod tests {
             H { hash_algo: super::SHA384, hex_sum: "3a52aaed14b5b6f9f7208914e5c34f0e16e70a285c37fd964ab918980a40acb52be0a71d43cdabb702aa2d025ce9ab7b", },
             H { hash_algo: super::SHA512, hex_sum: "990fed5cd10a549977ef6c9e58019a467f6c7aadffb9a6d22b2d060e6989a06d5beb473ebc217f3d553e16bf482efdc4dd91870e7943723fdc387c2e9fa3a4b8", },
         ];
-        let s = "A".repeat(1000000);
-        for x in alg_sum_list_2.iter() {
+        let s = "A".repeat(1_000_000);
+        for x in &alg_sum_list_2 {
             match super::get_byte_hash(s.as_bytes(), x.hash_algo) {
                 Ok(v) => {
-                    assert_eq!(v.written, 1000000);
-                    assert_eq!(super::get_hex_sum(&v.b), x.hex_sum);
+                    assert_eq!(super::get_hex_sum(&v.0), x.hex_sum);
+                    assert_eq!(v.1, 1_000_000);
                 }
                 Err(e) => panic!("{}", e),
             }
@@ -219,11 +212,11 @@ mod tests {
             H { hash_algo: super::SHA384, hex_sum: "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b", },
             H { hash_algo: super::SHA512, hex_sum: "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e", },
         ];
-        for x in alg_sum_list_1.iter() {
+        for x in &alg_sum_list_1 {
             match super::get_string_hash("", x.hash_algo) {
                 Ok(v) => {
-                    assert_eq!(v.written, 0);
-                    assert_eq!(super::get_hex_sum(&v.b), x.hex_sum);
+                    assert_eq!(super::get_hex_sum(&v.0), x.hex_sum);
+                    assert_eq!(v.1, 0);
                 }
                 Err(e) => panic!("{}", e),
             }
@@ -237,12 +230,12 @@ mod tests {
             H { hash_algo: super::SHA384, hex_sum: "3a52aaed14b5b6f9f7208914e5c34f0e16e70a285c37fd964ab918980a40acb52be0a71d43cdabb702aa2d025ce9ab7b", },
             H { hash_algo: super::SHA512, hex_sum: "990fed5cd10a549977ef6c9e58019a467f6c7aadffb9a6d22b2d060e6989a06d5beb473ebc217f3d553e16bf482efdc4dd91870e7943723fdc387c2e9fa3a4b8", },
         ];
-        let s = "A".repeat(1000000);
-        for x in alg_sum_list_2.iter() {
+        let s = "A".repeat(1_000_000);
+        for x in &alg_sum_list_2 {
             match super::get_string_hash(&s, x.hash_algo) {
                 Ok(v) => {
-                    assert_eq!(v.written, 1000000);
-                    assert_eq!(super::get_hex_sum(&v.b), x.hex_sum);
+                    assert_eq!(super::get_hex_sum(&v.0), x.hex_sum);
+                    assert_eq!(v.1, 1_000_000);
                 }
                 Err(e) => panic!("{}", e),
             }

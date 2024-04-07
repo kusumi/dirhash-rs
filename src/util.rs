@@ -27,10 +27,9 @@ pub(crate) fn canonicalize_path(f: &str) -> std::io::Result<String> {
         Ok(v) => v,
         Err(e) => {
             if std::fs::symlink_metadata(f)?.file_type().is_symlink() {
-                return Ok("".to_string()); // ignore broken symlink
-            } else {
-                return Err(e);
+                return Ok(String::new()); // ignore broken symlink
             }
+            return Err(e);
         }
     };
     Ok(p.into_os_string().into_string().unwrap())
@@ -84,14 +83,14 @@ pub(crate) fn get_path_separator() -> char {
 
 pub(crate) fn get_raw_file_type(f: &str) -> std::io::Result<FileType> {
     match std::fs::symlink_metadata(f) {
-        Ok(v) => Ok(get_mode_type(&v.file_type())),
+        Ok(v) => Ok(get_mode_type(v.file_type())),
         Err(e) => Err(e),
     }
 }
 
 pub(crate) fn get_file_type(f: &str) -> std::io::Result<FileType> {
     match std::fs::metadata(f) {
-        Ok(v) => Ok(get_mode_type(&v.file_type())),
+        Ok(v) => Ok(get_mode_type(v.file_type())),
         Err(e) => Err(e),
     }
 }
@@ -111,7 +110,7 @@ pub(crate) fn get_file_type_string(t: FileType) -> &'static str {
     }
 }
 
-fn get_mode_type(t: &std::fs::FileType) -> FileType {
+fn get_mode_type(t: std::fs::FileType) -> FileType {
     if t.is_dir() {
         DIR
     } else if t.is_file() {
@@ -156,9 +155,9 @@ pub(crate) fn is_valid_hexsum(s: &str) -> (&str, bool) {
 pub(crate) fn get_xsum_format_string(f: &str, h: &str, swap: bool) -> String {
     if !swap {
         // compatible with shaXsum commands
-        format!("{}  {}", h, f)
+        format!("{h}  {f}")
     } else {
-        format!("{}  {}", f, h)
+        format!("{f}  {h}")
     }
 }
 
@@ -167,7 +166,7 @@ pub(crate) fn get_num_format_string(n: usize, msg: &str) -> String {
         return "???".to_string();
     }
 
-    let mut s = format!("{} {}", n, msg);
+    let mut s = format!("{n} {msg}");
     if n > 1 {
         if msg == DIR_STR {
             s = format!("{}{}", &s[..s.len() - 1], "ies");
@@ -185,9 +184,9 @@ pub(crate) fn print_num_format_string(n: usize, msg: &str) {
 
 pub(crate) fn panic_file_type(f: &str, how: &str, t: FileType) {
     if !f.is_empty() {
-        panic!("{} has {} file type {}", f, how, t);
+        panic!("{f} has {how} file type {t}");
     } else {
-        panic!("{} file type {}", how, t);
+        panic!("{how} file type {t}");
     }
 }
 
@@ -222,10 +221,10 @@ mod tests {
                 o: "/dev",
             },
         ];
-        for x in path_list.iter() {
+        for x in &path_list {
             match super::canonicalize_path(x.i) {
                 Ok(v) => assert_eq!(v, x.o),
-                Err(e) => panic!("{} {:?}", e, x),
+                Err(e) => panic!("{e} {x:?}"),
             }
         }
     }
@@ -271,10 +270,10 @@ mod tests {
                 o: "/does/NOT/exist",
             },
         ];
-        for x in path_list.iter() {
+        for x in &path_list {
             match super::get_abspath(x.i) {
                 Ok(v) => assert_eq!(v, x.o),
-                Err(e) => panic!("{} {:?}", e, x),
+                Err(e) => panic!("{e} {x:?}"),
             }
         }
     }
@@ -309,10 +308,10 @@ mod tests {
                 o: "/does/NOT",
             },
         ];
-        for x in path_list.iter() {
+        for x in &path_list {
             match super::get_dirpath(x.i) {
                 Ok(v) => assert_eq!(v, x.o),
-                Err(e) => panic!("{} {:?}", e, x),
+                Err(e) => panic!("{e} {x:?}"),
             }
         }
     }
@@ -350,10 +349,10 @@ mod tests {
                 o: "exist",
             },
         ];
-        for x in path_list.iter() {
+        for x in &path_list {
             match super::get_basename(x.i) {
                 Ok(v) => assert_eq!(v, x.o),
-                Err(e) => panic!("{} {:?}", e, x),
+                Err(e) => panic!("{e} {x:?}"),
             }
         }
     }
@@ -403,10 +402,8 @@ mod tests {
                 o: false,
             },
         ];
-        for x in path_list.iter() {
-            if super::is_abspath(x.i) != x.o {
-                panic!("{:?}", x);
-            }
+        for x in &path_list {
+            assert!(super::is_abspath(x.i) == x.o, "{x:?}");
         }
     }
 
@@ -423,7 +420,7 @@ mod tests {
     #[test]
     fn test_get_raw_file_type() {
         let dir_list = [".", "..", "/", "/dev"];
-        for f in dir_list.iter() {
+        for f in &dir_list {
             match super::get_raw_file_type(f) {
                 Ok(v) => match v {
                     super::DIR => (),
@@ -433,7 +430,7 @@ mod tests {
             }
         }
         let invalid_list = ["", "516e7cb4-6ecf-11d6-8ff8-00022d09712b"];
-        for f in invalid_list.iter() {
+        for f in &invalid_list {
             if let Ok(v) = super::get_raw_file_type(f) {
                 panic!("{}", v);
             }
@@ -443,7 +440,7 @@ mod tests {
     #[test]
     fn test_get_file_type() {
         let dir_list = [".", "..", "/", "/dev"];
-        for f in dir_list.iter() {
+        for f in &dir_list {
             match super::get_file_type(f) {
                 Ok(v) => match v {
                     super::DIR => (),
@@ -453,7 +450,7 @@ mod tests {
             }
         }
         let invalid_list = ["", "516e7cb4-6ecf-11d6-8ff8-00022d09712b"];
-        for f in invalid_list.iter() {
+        for f in &invalid_list {
             if let Ok(v) = super::get_file_type(f) {
                 panic!("{}", v);
             }
@@ -492,7 +489,7 @@ mod tests {
                 s: "invalid file",
             },
         ];
-        for x in file_type_list.iter() {
+        for x in &file_type_list {
             assert_eq!(super::get_file_type_string(x.t), x.s);
         }
     }
@@ -500,32 +497,26 @@ mod tests {
     #[test]
     fn test_path_exists_or_error() {
         let dir_list = [".", "..", "/", "/dev"];
-        for f in dir_list.iter() {
+        for f in &dir_list {
             if let Err(e) = super::path_exists_or_error(f) {
                 panic!("{}", e);
             }
         }
         let invalid_list = ["", "516e7cb4-6ecf-11d6-8ff8-00022d09712b"];
-        for f in invalid_list.iter() {
-            if super::path_exists_or_error(f).is_ok() {
-                panic!("{}", f);
-            }
+        for f in &invalid_list {
+            assert!(super::path_exists_or_error(f).is_err(), "{}", f);
         }
     }
 
     #[test]
     fn test_path_exists() {
         let dir_list = [".", "..", "/", "/dev"];
-        for f in dir_list.iter() {
-            if !super::path_exists(f) {
-                panic!("{}", f);
-            }
+        for f in &dir_list {
+            assert!(super::path_exists(f), "{}", f);
         }
         let invalid_list = ["", "516e7cb4-6ecf-11d6-8ff8-00022d09712b"];
-        for f in invalid_list.iter() {
-            if super::path_exists(f) {
-                panic!("{}", f);
-            }
+        for f in &invalid_list {
+            assert!(!super::path_exists(f), "{}", f);
         }
     }
 
@@ -560,7 +551,7 @@ mod tests {
             "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "0x0123456789ABCDEFabcdef0123456789ABCDEFabcdef",
         ];
-        for s in valid_list.iter() {
+        for s in &valid_list {
             assert!(super::is_valid_hexsum(s).1);
         }
 
@@ -581,7 +572,7 @@ mod tests {
             "0",
             "",
         ];
-        for s in invalid_list.iter() {
+        for s in &invalid_list {
             assert!(!super::is_valid_hexsum(s).1);
         }
     }
@@ -625,7 +616,7 @@ mod tests {
                 result: "2 files",
             },
         ];
-        for x in num_format_list.iter() {
+        for x in &num_format_list {
             assert_eq!(super::get_num_format_string(x.n, x.msg), x.result);
         }
     }

@@ -12,15 +12,17 @@ pub(crate) struct Stat {
     stat_invalid: Vec<String>,
     stat_ignored: Vec<String>,
 
-    written_directory: u64, // hashed
-    written_regular: u64,   // hashed
-    written_device: u64,    // hashed
-    written_symlink: u64,   // hashed
+    written_directory: usize, // hashed
+    written_regular: usize,   // hashed
+    written_device: usize,    // hashed
+    written_symlink: usize,   // hashed
 }
 
 impl Stat {
-    pub(crate) fn new() -> Stat {
-        let mut stat = Stat { ..Stat::default() };
+    pub(crate) fn new() -> Self {
+        let mut stat = Self {
+            ..Default::default()
+        };
         stat.init_stat();
         stat
     }
@@ -41,46 +43,46 @@ impl Stat {
     }
 
     // num stat
-    pub(crate) fn num_stat_total(&self) -> u64 {
+    pub(crate) fn num_stat_total(&self) -> usize {
         self.num_stat_directory()
             + self.num_stat_regular()
             + self.num_stat_device()
             + self.num_stat_symlink()
     }
 
-    pub(crate) fn num_stat_directory(&self) -> u64 {
-        self.stat_directory.len() as u64
+    pub(crate) fn num_stat_directory(&self) -> usize {
+        self.stat_directory.len()
     }
 
-    pub(crate) fn num_stat_regular(&self) -> u64 {
-        self.stat_regular.len() as u64
+    pub(crate) fn num_stat_regular(&self) -> usize {
+        self.stat_regular.len()
     }
 
-    pub(crate) fn num_stat_device(&self) -> u64 {
-        self.stat_device.len() as u64
+    pub(crate) fn num_stat_device(&self) -> usize {
+        self.stat_device.len()
     }
 
-    pub(crate) fn num_stat_symlink(&self) -> u64 {
-        self.stat_symlink.len() as u64
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn num_stat_unsupported(&self) -> u64 {
-        self.stat_unsupported.len() as u64
+    pub(crate) fn num_stat_symlink(&self) -> usize {
+        self.stat_symlink.len()
     }
 
     #[allow(dead_code)]
-    pub(crate) fn num_stat_invalid(&self) -> u64 {
-        self.stat_invalid.len() as u64
+    pub(crate) fn num_stat_unsupported(&self) -> usize {
+        self.stat_unsupported.len()
     }
 
     #[allow(dead_code)]
-    pub(crate) fn num_stat_ignored(&self) -> u64 {
-        self.stat_ignored.len() as u64
+    pub(crate) fn num_stat_invalid(&self) -> usize {
+        self.stat_invalid.len()
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn num_stat_ignored(&self) -> usize {
+        self.stat_ignored.len()
     }
 
     // append stat
-    pub(crate) fn append_stat_total(&mut self) {}
+    pub(crate) fn append_stat_total(&self) {}
 
     pub(crate) fn append_stat_directory(&mut self, f: &str) {
         self.stat_directory.push(f.to_string());
@@ -149,7 +151,7 @@ impl Stat {
         }
         util::print_num_format_string(l.len(), msg);
 
-        for v in l.iter() {
+        for v in l {
             let f = dir::get_real_path(v, inp, opt);
             let t1 = util::get_raw_file_type(v)?;
             let t2 = match util::get_file_type(v) {
@@ -174,45 +176,49 @@ impl Stat {
     }
 
     // num written
-    pub(crate) fn num_written_total(&self) -> u64 {
+    pub(crate) fn num_written_total(&self) -> usize {
         self.num_written_directory()
             + self.num_written_regular()
             + self.num_written_device()
             + self.num_written_symlink()
     }
 
-    pub(crate) fn num_written_directory(&self) -> u64 {
+    pub(crate) fn num_written_directory(&self) -> usize {
         self.written_directory
     }
 
-    pub(crate) fn num_written_regular(&self) -> u64 {
+    pub(crate) fn num_written_regular(&self) -> usize {
         self.written_regular
     }
 
-    pub(crate) fn num_written_device(&self) -> u64 {
+    pub(crate) fn num_written_device(&self) -> usize {
         self.written_device
     }
 
-    pub(crate) fn num_written_symlink(&self) -> u64 {
+    pub(crate) fn num_written_symlink(&self) -> usize {
         self.written_symlink
     }
 
     // append written
-    pub(crate) fn append_written_total(&mut self, _written: u64) {}
+    pub(crate) fn append_written_total(&self, _written: u64) {}
 
     pub(crate) fn append_written_directory(&mut self, written: u64) {
+        let written = usize::try_from(written).unwrap();
         self.written_directory += written;
     }
 
     pub(crate) fn append_written_regular(&mut self, written: u64) {
+        let written = usize::try_from(written).unwrap();
         self.written_regular += written;
     }
 
     pub(crate) fn append_written_device(&mut self, written: u64) {
+        let written = usize::try_from(written).unwrap();
         self.written_device += written;
     }
 
     pub(crate) fn append_written_symlink(&mut self, written: u64) {
+        let written = usize::try_from(written).unwrap();
         self.written_symlink += written;
     }
 }
@@ -270,11 +276,11 @@ mod tests {
     #[test]
     fn test_append_written_regular() {
         let mut stat = super::Stat::new();
-        stat.append_written_regular(9999999999);
-        assert_eq!(stat.num_written_regular(), 9999999999);
+        stat.append_written_regular(9_999_999_999);
+        assert_eq!(stat.num_written_regular(), 9_999_999_999);
 
         stat.append_written_regular(1);
-        assert_eq!(stat.num_written_regular(), 10000000000);
+        assert_eq!(stat.num_written_regular(), 10_000_000_000);
 
         stat.init_stat();
         assert_eq!(stat.num_written_regular(), 0);
