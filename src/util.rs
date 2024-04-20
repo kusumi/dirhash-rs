@@ -1,25 +1,54 @@
 use path_clean::PathClean;
 use std::os::unix::fs::FileTypeExt;
 
-pub(crate) type FileType = i32;
+#[derive(Debug)]
+pub(crate) enum FileType {
+    Dir,
+    Reg,
+    Device,
+    Symlink,
+    Unsupported,
+    Invalid,
+}
 
-pub(crate) const DIR: FileType = 0;
-pub(crate) const REG: FileType = 1;
-pub(crate) const DEVICE: FileType = 2;
-pub(crate) const SYMLINK: FileType = 3;
-pub(crate) const UNSUPPORTED: FileType = 4;
-pub(crate) const INVALID: FileType = 5;
+impl FileType {
+    pub(crate) fn as_str(&self) -> &'static str {
+        match self {
+            FileType::Dir => "directory",
+            FileType::Reg => "regular file",
+            FileType::Device => "device",
+            FileType::Symlink => "symlink",
+            FileType::Unsupported => "unsupported file",
+            FileType::Invalid => "invalid file",
+        }
+    }
 
-pub(crate) const DIR_STR: &str = "directory";
-pub(crate) const REG_STR: &str = "regular file";
-pub(crate) const DEVICE_STR: &str = "device";
-pub(crate) const SYMLINK_STR: &str = "symlink";
-pub(crate) const UNSUPPORTED_STR: &str = "unsupported file";
-pub(crate) const INVALID_STR: &str = "invalid file";
+    pub(crate) fn is_dir(&self) -> bool {
+        matches!(self, FileType::Dir)
+    }
 
-pub(crate) fn read_link(f: &str) -> std::io::Result<String> {
-    let p = std::fs::read_link(f)?;
-    Ok(p.into_os_string().into_string().unwrap())
+    #[allow(dead_code)]
+    pub(crate) fn is_reg(&self) -> bool {
+        matches!(self, FileType::Reg)
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn is_device(&self) -> bool {
+        matches!(self, FileType::Device)
+    }
+
+    pub(crate) fn is_symlink(&self) -> bool {
+        matches!(self, FileType::Symlink)
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn is_unsupported(&self) -> bool {
+        matches!(self, FileType::Unsupported)
+    }
+
+    pub(crate) fn is_invalid(&self) -> bool {
+        matches!(self, FileType::Invalid)
+    }
 }
 
 pub(crate) fn canonicalize_path(f: &str) -> std::io::Result<String> {
@@ -95,32 +124,17 @@ pub(crate) fn get_file_type(f: &str) -> std::io::Result<FileType> {
     }
 }
 
-pub(crate) fn get_file_type_string(t: FileType) -> &'static str {
-    match t {
-        DIR => DIR_STR,
-        REG => REG_STR,
-        DEVICE => DEVICE_STR,
-        SYMLINK => SYMLINK_STR,
-        UNSUPPORTED => UNSUPPORTED_STR,
-        INVALID => INVALID_STR,
-        _ => {
-            panic_file_type("", "unknown", t);
-            ""
-        }
-    }
-}
-
 fn get_mode_type(t: std::fs::FileType) -> FileType {
     if t.is_dir() {
-        DIR
+        FileType::Dir
     } else if t.is_file() {
-        REG
+        FileType::Reg
     } else if t.is_symlink() {
-        SYMLINK
+        FileType::Symlink
     } else if t.is_block_device() || t.is_char_device() {
-        DEVICE
+        FileType::Device
     } else {
-        UNSUPPORTED
+        FileType::Unsupported
     }
 }
 
@@ -168,7 +182,7 @@ pub(crate) fn get_num_format_string(n: usize, msg: &str) -> String {
 
     let mut s = format!("{n} {msg}");
     if n > 1 {
-        if msg == DIR_STR {
+        if msg == FileType::Dir.as_str() {
             s = format!("{}{}", &s[..s.len() - 1], "ies");
             assert!(s.ends_with("directories"));
         } else {
@@ -182,11 +196,11 @@ pub(crate) fn print_num_format_string(n: usize, msg: &str) {
     println!("{}", get_num_format_string(n, msg));
 }
 
-pub(crate) fn panic_file_type(f: &str, how: &str, t: FileType) {
+pub(crate) fn panic_file_type(f: &str, how: &str, t: &FileType) {
     if !f.is_empty() {
-        panic!("{f} has {how} file type {t}");
+        panic!("{f} has {how} file type {t:?}");
     } else {
-        panic!("{how} file type {t}");
+        panic!("{how} file type {t:?}");
     }
 }
 
@@ -423,16 +437,16 @@ mod tests {
         for f in &dir_list {
             match super::get_raw_file_type(f) {
                 Ok(v) => match v {
-                    super::DIR => (),
-                    x => panic!("{}", x),
+                    super::FileType::Dir => (),
+                    x => panic!("{x:?}"),
                 },
-                Err(e) => panic!("{}", e),
+                Err(e) => panic!("{e}"),
             }
         }
         let invalid_list = ["", "516e7cb4-6ecf-11d6-8ff8-00022d09712b"];
         for f in &invalid_list {
             if let Ok(v) = super::get_raw_file_type(f) {
-                panic!("{}", v);
+                panic!("{v:?}");
             }
         }
     }
@@ -443,16 +457,16 @@ mod tests {
         for f in &dir_list {
             match super::get_file_type(f) {
                 Ok(v) => match v {
-                    super::DIR => (),
-                    x => panic!("{}", x),
+                    super::FileType::Dir => (),
+                    x => panic!("{x:?}"),
                 },
-                Err(e) => panic!("{}", e),
+                Err(e) => panic!("{e}"),
             }
         }
         let invalid_list = ["", "516e7cb4-6ecf-11d6-8ff8-00022d09712b"];
         for f in &invalid_list {
             if let Ok(v) = super::get_file_type(f) {
-                panic!("{}", v);
+                panic!("{v:?}");
             }
         }
     }
@@ -465,33 +479,43 @@ mod tests {
         }
         let file_type_list = [
             F {
-                t: super::DIR,
+                t: super::FileType::Dir,
                 s: "directory",
             },
             F {
-                t: super::REG,
+                t: super::FileType::Reg,
                 s: "regular file",
             },
             F {
-                t: super::DEVICE,
+                t: super::FileType::Device,
                 s: "device",
             },
             F {
-                t: super::SYMLINK,
+                t: super::FileType::Symlink,
                 s: "symlink",
             },
             F {
-                t: super::UNSUPPORTED,
+                t: super::FileType::Unsupported,
                 s: "unsupported file",
             },
             F {
-                t: super::INVALID,
+                t: super::FileType::Invalid,
                 s: "invalid file",
             },
         ];
         for x in &file_type_list {
-            assert_eq!(super::get_file_type_string(x.t), x.s);
+            assert_eq!(x.t.as_str(), x.s);
         }
+    }
+
+    #[test]
+    fn test_get_file_type_is_xxx() {
+        assert!(super::FileType::Dir.is_dir());
+        assert!(super::FileType::Reg.is_reg());
+        assert!(super::FileType::Device.is_device());
+        assert!(super::FileType::Symlink.is_symlink());
+        assert!(super::FileType::Unsupported.is_unsupported());
+        assert!(super::FileType::Invalid.is_invalid());
     }
 
     #[test]
@@ -499,12 +523,12 @@ mod tests {
         let dir_list = [".", "..", "/", "/dev"];
         for f in &dir_list {
             if let Err(e) = super::path_exists_or_error(f) {
-                panic!("{}", e);
+                panic!("{e}");
             }
         }
         let invalid_list = ["", "516e7cb4-6ecf-11d6-8ff8-00022d09712b"];
         for f in &invalid_list {
-            assert!(super::path_exists_or_error(f).is_err(), "{}", f);
+            assert!(super::path_exists_or_error(f).is_err(), "{f}");
         }
     }
 
@@ -512,11 +536,11 @@ mod tests {
     fn test_path_exists() {
         let dir_list = [".", "..", "/", "/dev"];
         for f in &dir_list {
-            assert!(super::path_exists(f), "{}", f);
+            assert!(super::path_exists(f), "{f}");
         }
         let invalid_list = ["", "516e7cb4-6ecf-11d6-8ff8-00022d09712b"];
         for f in &invalid_list {
-            assert!(!super::path_exists(f), "{}", f);
+            assert!(!super::path_exists(f), "{f}");
         }
     }
 

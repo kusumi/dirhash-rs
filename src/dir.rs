@@ -9,7 +9,7 @@ use crate::SQUASH_VERSION;
 pub(crate) fn print_input(f: &str, opt: &Opt) -> std::io::Result<()> {
     // keep symlink input as is
     // XXX but unlike filepath.WalkDir, walkdir::WalkDir resolves symlink
-    let f = if util::get_raw_file_type(f)? == util::SYMLINK {
+    let f = if util::get_raw_file_type(f)?.is_symlink() {
         f.to_string()
     } else {
         let x = util::canonicalize_path(f)?;
@@ -27,13 +27,15 @@ pub(crate) fn print_input(f: &str, opt: &Opt) -> std::io::Result<()> {
 
     // keep input prefix based on raw type
     let inp = match util::get_raw_file_type(&f)? {
-        util::DIR => f.clone(),
-        util::REG | util::DEVICE | util::SYMLINK => util::get_dirpath(&f)?,
+        util::FileType::Dir => f.clone(),
+        util::FileType::Reg | util::FileType::Device | util::FileType::Symlink => {
+            util::get_dirpath(&f)?
+        }
         _ => return Err(std::io::Error::from(std::io::ErrorKind::InvalidInput)),
     };
 
     // prefix is a directory
-    assert!(util::get_file_type(&inp)? == util::DIR);
+    assert!(util::get_file_type(&inp)?.is_dir());
 
     // start directory walk
     let mut squ = Squash::new();
@@ -49,7 +51,7 @@ pub(crate) fn print_input(f: &str, opt: &Opt) -> std::io::Result<()> {
 
     // print squash hash if specified
     if opt.squash {
-        let b = squ.get_squash_buffer();
+        let b = squ.get_buffer();
         if opt.verbose {
             util::print_num_format_string(b.len(), "squashed byte");
         }
@@ -98,53 +100,50 @@ fn walk_directory_impl(
     opt: &Opt,
 ) -> std::io::Result<()> {
     let mut t = util::get_raw_file_type(f)?;
-    if test_ignore_entry(f, t, opt) {
+    if test_ignore_entry(f, &t, opt) {
         sta.append_stat_ignored(f);
         return Ok(());
     }
 
     // find target if symlink
-    let mut x = f.to_string();
-    // symlink itself, not its target
-    let l = match t {
-        util::SYMLINK => {
-            if opt.ignore_symlink {
-                sta.append_stat_ignored(f);
-                return Ok(());
-            }
-            if !opt.follow_symlink {
-                print_symlink(f, inp, squ, sta, opt)?;
-                return Ok(());
-            }
-            let l = f.to_string();
-            x = util::canonicalize_path(f)?;
-            if x.is_empty() {
-                print_invalid(&l, sta, opt)?;
-                return Ok(());
-            }
-            assert!(util::is_abspath(&x));
-            t = util::get_file_type(&x)?;
-            assert!(t != util::SYMLINK); // symlink chains resolved
-            l
+    // l is symlink itself, not its target
+    let (x, l) = if t.is_symlink() {
+        if opt.ignore_symlink {
+            sta.append_stat_ignored(f);
+            return Ok(());
         }
-        _ => String::new(),
+        if !opt.follow_symlink {
+            print_symlink(f, inp, squ, sta, opt)?;
+            return Ok(());
+        }
+        let x = util::canonicalize_path(f)?;
+        if x.is_empty() {
+            print_invalid(f, sta, opt)?;
+            return Ok(());
+        }
+        assert!(util::is_abspath(&x));
+        t = util::get_file_type(&x)?; // update type
+        assert!(!t.is_symlink()); // symlink chains resolved
+        (x, f.to_string())
+    } else {
+        (f.to_string(), String::new())
     };
 
     match t {
-        util::DIR => handle_directory(&x, &l, inp, squ, sta, opt)?,
-        util::REG | util::DEVICE => print_file(&x, &l, t, inp, squ, sta, opt)?,
-        util::UNSUPPORTED => print_unsupported(&x, sta, opt)?,
-        util::INVALID => print_invalid(&x, sta, opt)?,
-        _ => util::panic_file_type(&x, "unknown", t),
+        util::FileType::Dir => handle_directory(&x, &l, inp, squ, sta, opt)?,
+        util::FileType::Reg | util::FileType::Device => print_file(&x, &l, &t, inp, squ, sta, opt)?,
+        util::FileType::Unsupported => print_unsupported(&x, sta, opt)?,
+        util::FileType::Invalid => print_invalid(&x, sta, opt)?,
+        util::FileType::Symlink => util::panic_file_type(&x, "symlink", &t),
     }
     Ok(())
 }
 
-fn test_ignore_entry(f: &str, t: util::FileType, opt: &Opt) -> bool {
+fn test_ignore_entry(f: &str, t: &util::FileType, opt: &Opt) -> bool {
     assert!(util::is_abspath(f));
 
     // only non directory types count
-    if t == util::DIR {
+    if t.is_dir() {
         return false;
     }
 
@@ -252,11 +251,11 @@ fn handle_directory<'a>(
 
     // debug print first
     if opt.debug {
-        print_debug(f, util::DIR, opt)?;
+        print_debug(f, &util::FileType::Dir, opt)?;
     }
 
     // get hash value
-    // path must be relative from input prefix
+    // path must be relative to input prefix
     let s = trim_input_prefix(f, inp);
     let (b, written) = hash::get_string_hash(s, &opt.hash_algo)?;
     assert!(!b.is_empty());
@@ -270,7 +269,7 @@ fn handle_directory<'a>(
     // squash
     assert!(opt.squash);
     if opt.hash_only {
-        squ.update_squash_buffer(&b)?;
+        squ.update_buffer(&b)?;
     } else {
         // make link -> target format if symlink
         let mut realf = get_real_path(f, inp, opt).to_string();
@@ -285,7 +284,7 @@ fn handle_directory<'a>(
         }
         let mut v = realf.as_bytes().to_vec();
         v.extend(b);
-        squ.update_squash_buffer(&v)?;
+        squ.update_buffer(&v)?;
     }
     Ok(())
 }
@@ -293,7 +292,7 @@ fn handle_directory<'a>(
 fn print_file<'a>(
     f: &str,
     l: &'a str,
-    t: util::FileType,
+    t: &util::FileType,
     inp: &'a str,
     squ: &mut Squash,
     sta: &mut stat::Stat,
@@ -318,11 +317,11 @@ fn print_file<'a>(
     sta.append_stat_total();
     sta.append_written_total(written);
     match t {
-        util::REG => {
+        util::FileType::Reg => {
             sta.append_stat_regular(f);
             sta.append_written_regular(written);
         }
-        util::DEVICE => {
+        util::FileType::Device => {
             sta.append_stat_device(f);
             sta.append_written_device(written);
         }
@@ -337,7 +336,7 @@ fn print_file<'a>(
     // squash or print this file
     if opt.hash_only {
         if opt.squash {
-            squ.update_squash_buffer(&b)?;
+            squ.update_buffer(&b)?;
         } else {
             println!("{hex_sum}");
         }
@@ -356,7 +355,7 @@ fn print_file<'a>(
         if opt.squash {
             let mut v = realf.as_bytes().to_vec();
             v.extend(b);
-            squ.update_squash_buffer(&v)?;
+            squ.update_buffer(&v)?;
         } else {
             println!(
                 "{}",
@@ -378,15 +377,11 @@ fn print_symlink(
 
     // debug print first
     if opt.debug {
-        print_debug(f, util::SYMLINK, opt)?;
+        print_debug(f, &util::FileType::Symlink, opt)?;
     }
 
-    // get a symlink string to get hash value
-    // must keep relative symlink path as is
-    let s = util::read_link(f)?;
-
-    // get hash value
-    let (b, written) = hash::get_string_hash(&s, &opt.hash_algo)?;
+    // get hash value of symlink base name
+    let (b, written) = hash::get_string_hash(&util::get_basename(f)?, &opt.hash_algo)?;
     assert!(!b.is_empty());
     let hex_sum = hash::get_hex_sum(&b);
 
@@ -404,17 +399,16 @@ fn print_symlink(
     // squash or print this file
     if opt.hash_only {
         if opt.squash {
-            squ.update_squash_buffer(&b)?;
+            squ.update_buffer(&b)?;
         } else {
             println!("{hex_sum}");
         }
     } else {
-        // hash value is from s, but print realf path for clarity
         let realf = get_real_path(f, inp, opt);
         if opt.squash {
             let mut v = realf.as_bytes().to_vec();
             v.extend(b);
-            squ.update_squash_buffer(&v)?;
+            squ.update_buffer(&v)?;
         } else {
             println!(
                 "{}",
@@ -427,7 +421,7 @@ fn print_symlink(
 
 fn print_unsupported(f: &str, sta: &mut stat::Stat, opt: &Opt) -> std::io::Result<()> {
     if opt.debug {
-        print_debug(f, util::UNSUPPORTED, opt)?;
+        print_debug(f, &util::FileType::Unsupported, opt)?;
     }
     sta.append_stat_unsupported(f);
     Ok(())
@@ -435,19 +429,18 @@ fn print_unsupported(f: &str, sta: &mut stat::Stat, opt: &Opt) -> std::io::Resul
 
 fn print_invalid(f: &str, sta: &mut stat::Stat, opt: &Opt) -> std::io::Result<()> {
     if opt.debug {
-        print_debug(f, util::INVALID, opt)?;
+        print_debug(f, &util::FileType::Invalid, opt)?;
     }
     sta.append_stat_invalid(f);
     Ok(())
 }
 
-fn print_debug(f: &str, t: util::FileType, opt: &Opt) -> std::io::Result<()> {
+fn print_debug(f: &str, t: &util::FileType, opt: &Opt) -> std::io::Result<()> {
     assert!(opt.debug);
-    let s = util::get_file_type_string(t);
     if opt.abs {
-        println!("### {} {}", util::get_abspath(f)?, s);
+        println!("### {} {}", util::get_abspath(f)?, t.as_str());
     } else {
-        println!("### {f} {s}");
+        println!("### {} {}", f, t.as_str());
     }
     Ok(())
 }
@@ -463,19 +456,19 @@ fn print_verbose_stat(inp: &str, sta: &mut stat::Stat, opt: &Opt) -> std::io::Re
     assert!(a0 + a1 + a2 + a3 == sta.num_stat_total());
     if a0 > 0 {
         print!("{indent}");
-        util::print_num_format_string(a0, util::DIR_STR);
+        util::print_num_format_string(a0, util::FileType::Dir.as_str());
     }
     if a1 > 0 {
         print!("{indent}");
-        util::print_num_format_string(a1, util::REG_STR);
+        util::print_num_format_string(a1, util::FileType::Reg.as_str());
     }
     if a2 > 0 {
         print!("{indent}");
-        util::print_num_format_string(a2, util::DEVICE_STR);
+        util::print_num_format_string(a2, util::FileType::Device.as_str());
     }
     if a3 > 0 {
         print!("{indent}");
-        util::print_num_format_string(a3, util::SYMLINK_STR);
+        util::print_num_format_string(a3, util::FileType::Symlink.as_str());
     }
 
     util::print_num_format_string(sta.num_written_total(), "byte");
@@ -486,19 +479,25 @@ fn print_verbose_stat(inp: &str, sta: &mut stat::Stat, opt: &Opt) -> std::io::Re
     assert!(b0 + b1 + b2 + b3 == sta.num_written_total());
     if b0 > 0 {
         print!("{indent}");
-        util::print_num_format_string(b0, &format!("{} {}", util::DIR_STR, "byte"));
+        util::print_num_format_string(b0, &format!("{} {}", util::FileType::Dir.as_str(), "byte"));
     }
     if b1 > 0 {
         print!("{indent}");
-        util::print_num_format_string(b1, &format!("{} {}", util::REG_STR, "byte"));
+        util::print_num_format_string(b1, &format!("{} {}", util::FileType::Reg.as_str(), "byte"));
     }
     if b2 > 0 {
         print!("{indent}");
-        util::print_num_format_string(b2, &format!("{} {}", util::DEVICE_STR, "byte"));
+        util::print_num_format_string(
+            b2,
+            &format!("{} {}", util::FileType::Device.as_str(), "byte"),
+        );
     }
     if b3 > 0 {
         print!("{indent}");
-        util::print_num_format_string(b3, &format!("{} {}", util::SYMLINK_STR, "byte"));
+        util::print_num_format_string(
+            b3,
+            &format!("{} {}", util::FileType::Symlink.as_str(), "byte"),
+        );
     }
 
     sta.print_stat_ignored(inp, opt)

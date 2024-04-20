@@ -174,7 +174,7 @@ mod tests {
                     assert_eq!(super::get_hex_sum(&v.0), x.hex_sum);
                     assert_eq!(v.1, 0);
                 }
-                Err(e) => panic!("{}", e),
+                Err(e) => panic!("{e}"),
             }
         }
 
@@ -193,7 +193,7 @@ mod tests {
                     assert_eq!(super::get_hex_sum(&v.0), x.hex_sum);
                     assert_eq!(v.1, 1_000_000);
                 }
-                Err(e) => panic!("{}", e),
+                Err(e) => panic!("{e}"),
             }
         }
     }
@@ -218,7 +218,7 @@ mod tests {
                     assert_eq!(super::get_hex_sum(&v.0), x.hex_sum);
                     assert_eq!(v.1, 0);
                 }
-                Err(e) => panic!("{}", e),
+                Err(e) => panic!("{e}"),
             }
         }
 
@@ -237,7 +237,7 @@ mod tests {
                     assert_eq!(super::get_hex_sum(&v.0), x.hex_sum);
                     assert_eq!(v.1, 1_000_000);
                 }
-                Err(e) => panic!("{}", e),
+                Err(e) => panic!("{e}"),
             }
         }
     }

@@ -17,7 +17,7 @@ mod squash2;
 #[cfg(feature = "squash2")]
 use squash2::{Squash, SQUASH_LABEL, SQUASH_VERSION};
 
-const VERSION: [i32; 3] = [0, 4, 3];
+const VERSION: [i32; 3] = [0, 4, 4];
 
 #[derive(Debug)]
 struct Opt {
@@ -156,7 +156,6 @@ fn main() {
     }
 
     if opt.verbose {
-        print_version();
         println!("{}", opt.hash_algo);
     }
 
@@ -193,7 +192,7 @@ fn main() {
     let args = matches.free;
     for (i, x) in args.iter().enumerate() {
         if let Err(e) = dir::print_input(x, &opt) {
-            panic!("{}", e);
+            panic!("{e}");
         }
         if opt.verbose && !args.is_empty() && i != args.len() - 1 {
             println!();

@@ -1,4 +1,4 @@
-dirhash-rs ([v0.4.3](https://github.com/kusumi/dirhash-rs/releases/tag/v0.4.3))
+dirhash-rs ([v0.4.4](https://github.com/kusumi/dirhash-rs/releases/tag/v0.4.4))
 ========
 
 ## About

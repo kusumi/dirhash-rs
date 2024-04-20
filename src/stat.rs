@@ -115,30 +115,45 @@ impl Stat {
     // print stat
     #[allow(dead_code)]
     pub(crate) fn print_stat_directory(&self, inp: &str, opt: &Opt) -> std::io::Result<()> {
-        self.print_stat(&self.stat_directory, util::DIR_STR, inp, opt)
+        self.print_stat(&self.stat_directory, util::FileType::Dir.as_str(), inp, opt)
     }
 
     #[allow(dead_code)]
     pub(crate) fn print_stat_regular(&self, inp: &str, opt: &Opt) -> std::io::Result<()> {
-        self.print_stat(&self.stat_regular, util::REG_STR, inp, opt)
+        self.print_stat(&self.stat_regular, util::FileType::Reg.as_str(), inp, opt)
     }
 
     #[allow(dead_code)]
     pub(crate) fn print_stat_device(&self, inp: &str, opt: &Opt) -> std::io::Result<()> {
-        self.print_stat(&self.stat_device, util::DEVICE_STR, inp, opt)
+        self.print_stat(&self.stat_device, util::FileType::Device.as_str(), inp, opt)
     }
 
     #[allow(dead_code)]
     pub(crate) fn print_stat_symlink(&self, inp: &str, opt: &Opt) -> std::io::Result<()> {
-        self.print_stat(&self.stat_symlink, util::SYMLINK_STR, inp, opt)
+        self.print_stat(
+            &self.stat_symlink,
+            util::FileType::Symlink.as_str(),
+            inp,
+            opt,
+        )
     }
 
     pub(crate) fn print_stat_unsupported(&self, inp: &str, opt: &Opt) -> std::io::Result<()> {
-        self.print_stat(&self.stat_unsupported, util::UNSUPPORTED_STR, inp, opt)
+        self.print_stat(
+            &self.stat_unsupported,
+            util::FileType::Unsupported.as_str(),
+            inp,
+            opt,
+        )
     }
 
     pub(crate) fn print_stat_invalid(&self, inp: &str, opt: &Opt) -> std::io::Result<()> {
-        self.print_stat(&self.stat_invalid, util::INVALID_STR, inp, opt)
+        self.print_stat(
+            &self.stat_invalid,
+            util::FileType::Invalid.as_str(),
+            inp,
+            opt,
+        )
     }
 
     pub(crate) fn print_stat_ignored(&self, inp: &str, opt: &Opt) -> std::io::Result<()> {
@@ -156,20 +171,15 @@ impl Stat {
             let t1 = util::get_raw_file_type(v)?;
             let t2 = match util::get_file_type(v) {
                 Ok(v) => v,
-                Err(_) => util::INVALID, // e.g. broken symlink
+                Err(_) => util::FileType::Invalid, // e.g. broken symlink
             };
-            assert!(t2 != util::SYMLINK); // symlink chains resolved
-            if t1 == util::SYMLINK {
-                assert!(opt.ignore_symlink || t2 == util::DIR || t2 == util::INVALID);
-                println!(
-                    "{} ({} -> {})",
-                    f,
-                    util::get_file_type_string(t1),
-                    util::get_file_type_string(t2)
-                );
+            assert!(!t2.is_symlink()); // symlink chains resolved
+            if t1.is_symlink() {
+                assert!(opt.ignore_symlink || t2.is_dir() || t2.is_invalid());
+                println!("{} ({} -> {})", f, t1.as_str(), t2.as_str());
             } else {
-                assert!(t2 != util::DIR);
-                println!("{} ({})", f, util::get_file_type_string(t1));
+                assert!(!t2.is_dir());
+                println!("{} ({})", f, t1.as_str());
             }
         }
         Ok(())
@@ -203,23 +213,19 @@ impl Stat {
     pub(crate) fn append_written_total(&self, _written: u64) {}
 
     pub(crate) fn append_written_directory(&mut self, written: u64) {
-        let written = usize::try_from(written).unwrap();
-        self.written_directory += written;
+        self.written_directory += usize::try_from(written).unwrap();
     }
 
     pub(crate) fn append_written_regular(&mut self, written: u64) {
-        let written = usize::try_from(written).unwrap();
-        self.written_regular += written;
+        self.written_regular += usize::try_from(written).unwrap();
     }
 
     pub(crate) fn append_written_device(&mut self, written: u64) {
-        let written = usize::try_from(written).unwrap();
-        self.written_device += written;
+        self.written_device += usize::try_from(written).unwrap();
     }
 
     pub(crate) fn append_written_symlink(&mut self, written: u64) {
-        let written = usize::try_from(written).unwrap();
-        self.written_symlink += written;
+        self.written_symlink += usize::try_from(written).unwrap();
     }
 }
 
