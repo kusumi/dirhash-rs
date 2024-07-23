@@ -160,7 +160,7 @@ impl Stat {
         self.print_stat(&self.stat_ignored, "ignored file", inp, opt)
     }
 
-    fn print_stat(&self, l: &Vec<String>, msg: &str, inp: &str, opt: &Opt) -> std::io::Result<()> {
+    fn print_stat(&self, l: &[String], msg: &str, inp: &str, opt: &Opt) -> std::io::Result<()> {
         if l.is_empty() {
             return Ok(());
         }

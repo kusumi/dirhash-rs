@@ -17,7 +17,7 @@ mod squash2;
 #[cfg(feature = "squash2")]
 use squash2::{Squash, SQUASH_LABEL, SQUASH_VERSION};
 
-const VERSION: [i32; 3] = [0, 4, 4];
+const VERSION: [i32; 3] = [0, 4, 5];
 
 #[derive(Debug)]
 struct Opt {
@@ -75,7 +75,7 @@ fn usage(progname: &str, opts: &getopts::Options) {
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let progname = args[0].clone();
+    let progname = &args[0];
 
     let mut opts = getopts::Options::new();
     opts.optopt(
@@ -113,24 +113,31 @@ fn main() {
     opts.optflag("v", "version", "Print version and exit");
     opts.optflag("h", "help", "Print usage and exit");
 
-    let matches = opts.parse(&args[1..]).unwrap();
+    let matches = match opts.parse(&args[1..]) {
+        Ok(v) => v,
+        Err(e) => {
+            println!("{e}");
+            usage(progname, &opts);
+            std::process::exit(1);
+        }
+    };
     if matches.opt_present("v") {
         print_version();
         std::process::exit(1);
     }
     if matches.opt_present("h") {
-        usage(&progname, &opts);
+        usage(progname, &opts);
         std::process::exit(1);
     }
 
     let mut opt = Opt {
         ..Default::default()
     };
-    if matches.opt_present("hash_algo") {
-        opt.hash_algo = matches.opt_str("hash_algo").unwrap();
+    if let Some(v) = matches.opt_str("hash_algo") {
+        opt.hash_algo = v;
     }
-    if matches.opt_present("hash_verify") {
-        opt.hash_verify = matches.opt_str("hash_verify").unwrap();
+    if let Some(v) = matches.opt_str("hash_verify") {
+        opt.hash_verify = v;
     }
     opt.hash_only = matches.opt_present("hash_only");
     opt.ignore_dot = matches.opt_present("ignore_dot");
@@ -146,7 +153,7 @@ fn main() {
     opt.debug = matches.opt_present("debug");
 
     if matches.free.is_empty() {
-        usage(&progname, &opts);
+        usage(progname, &opts);
         std::process::exit(1);
     }
 

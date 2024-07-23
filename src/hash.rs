@@ -132,7 +132,7 @@ pub(crate) fn get_hash(
     ))
 }
 
-pub(crate) fn get_hex_sum(sum: &Vec<u8>) -> String {
+pub(crate) fn get_hex_sum(sum: &[u8]) -> String {
     hex::encode(sum)
 }
 

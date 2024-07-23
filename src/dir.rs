@@ -453,7 +453,7 @@ fn print_verbose_stat(inp: &str, sta: &mut stat::Stat, opt: &Opt) -> std::io::Re
     let a1 = sta.num_stat_regular();
     let a2 = sta.num_stat_device();
     let a3 = sta.num_stat_symlink();
-    assert!(a0 + a1 + a2 + a3 == sta.num_stat_total());
+    assert_eq!(a0 + a1 + a2 + a3, sta.num_stat_total());
     if a0 > 0 {
         print!("{indent}");
         util::print_num_format_string(a0, util::FileType::Dir.as_str());
@@ -476,7 +476,7 @@ fn print_verbose_stat(inp: &str, sta: &mut stat::Stat, opt: &Opt) -> std::io::Re
     let b1 = sta.num_written_regular();
     let b2 = sta.num_written_device();
     let b3 = sta.num_written_symlink();
-    assert!(b0 + b1 + b2 + b3 == sta.num_written_total());
+    assert_eq!(b0 + b1 + b2 + b3, sta.num_written_total());
     if b0 > 0 {
         print!("{indent}");
         util::print_num_format_string(b0, &format!("{} {}", util::FileType::Dir.as_str(), "byte"));
