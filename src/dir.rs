@@ -256,6 +256,9 @@ fn handle_directory<'a>(
 
     // get hash value
     // path must be relative to input prefix
+    // XXX trim_input_prefix() won't work as expected when e.g.
+    // inp is "/path/to/dir" and f is a symlink "/path/to/dir.something".
+    // s results in "something".
     let s = trim_input_prefix(f, inp);
     let (b, written) = hash::get_string_hash(s, &opt.hash_algo)?;
     assert!(!b.is_empty());

@@ -212,36 +212,19 @@ pub(crate) fn panic_file_type(f: &str, how: &str, t: &FileType) {
 mod tests {
     #[test]
     fn test_canonicalize_path() {
-        #[derive(Debug)]
-        struct F {
-            i: &'static str,
-            o: &'static str,
-        }
         let path_list = [
-            F { i: "/", o: "/" },
-            F { i: "/////", o: "/" },
-            F { i: "/..", o: "/" },
-            F { i: "/../", o: "/" },
-            F {
-                i: "/root",
-                o: "/root",
-            },
-            F {
-                i: "/root/",
-                o: "/root",
-            },
-            F {
-                i: "/root/..",
-                o: "/",
-            },
-            F {
-                i: "/root/../dev",
-                o: "/dev",
-            },
+            ("/", "/"),
+            ("/////", "/"),
+            ("/..", "/"),
+            ("/../", "/"),
+            ("/root", "/root"),
+            ("/root/", "/root"),
+            ("/root/..", "/"),
+            ("/root/../dev", "/dev"),
         ];
         for x in &path_list {
-            match super::canonicalize_path(x.i) {
-                Ok(v) => assert_eq!(v, x.o),
+            match super::canonicalize_path(x.0) {
+                Ok(v) => assert_eq!(v, x.1),
                 Err(e) => panic!("{e} {x:?}"),
             }
         }
@@ -249,48 +232,22 @@ mod tests {
 
     #[test]
     fn test_get_abspath() {
-        #[derive(Debug)]
-        struct F {
-            i: &'static str,
-            o: &'static str,
-        }
         let path_list = [
-            F { i: "/", o: "/" },
-            F { i: "/////", o: "/" },
-            F { i: "/..", o: "/" },
-            F { i: "/../", o: "/" },
-            F {
-                i: "/root",
-                o: "/root",
-            },
-            F {
-                i: "/root/",
-                o: "/root",
-            },
-            F {
-                i: "/root/..",
-                o: "/",
-            },
-            F {
-                i: "/root/../dev",
-                o: "/dev",
-            },
-            F {
-                i: "/does/not/exist",
-                o: "/does/not/exist",
-            },
-            F {
-                i: "/does/not/./exist",
-                o: "/does/not/exist",
-            },
-            F {
-                i: "/does/not/../NOT/exist",
-                o: "/does/NOT/exist",
-            },
+            ("/", "/"),
+            ("/////", "/"),
+            ("/..", "/"),
+            ("/../", "/"),
+            ("/root", "/root"),
+            ("/root/", "/root"),
+            ("/root/..", "/"),
+            ("/root/../dev", "/dev"),
+            ("/does/not/exist", "/does/not/exist"),
+            ("/does/not/./exist", "/does/not/exist"),
+            ("/does/not/../NOT/exist", "/does/NOT/exist"),
         ];
         for x in &path_list {
-            match super::get_abspath(x.i) {
-                Ok(v) => assert_eq!(v, x.o),
+            match super::get_abspath(x.0) {
+                Ok(v) => assert_eq!(v, x.1),
                 Err(e) => panic!("{e} {x:?}"),
             }
         }
@@ -298,37 +255,17 @@ mod tests {
 
     #[test]
     fn test_get_dirpath() {
-        #[derive(Debug)]
-        struct F {
-            i: &'static str,
-            o: &'static str,
-        }
         let path_list = [
-            F { i: "/root", o: "/" },
-            F {
-                i: "/root/",
-                o: "/",
-            },
-            F {
-                i: "/root/../dev",
-                o: "/",
-            },
-            F {
-                i: "/does/not/exist",
-                o: "/does/not",
-            },
-            F {
-                i: "/does/not/./exist",
-                o: "/does/not",
-            },
-            F {
-                i: "/does/not/../NOT/exist",
-                o: "/does/NOT",
-            },
+            ("/root", "/"),
+            ("/root/", "/"),
+            ("/root/../dev", "/"),
+            ("/does/not/exist", "/does/not"),
+            ("/does/not/./exist", "/does/not"),
+            ("/does/not/../NOT/exist", "/does/NOT"),
         ];
         for x in &path_list {
-            match super::get_dirpath(x.i) {
-                Ok(v) => assert_eq!(v, x.o),
+            match super::get_dirpath(x.0) {
+                Ok(v) => assert_eq!(v, x.1),
                 Err(e) => panic!("{e} {x:?}"),
             }
         }
@@ -336,40 +273,17 @@ mod tests {
 
     #[test]
     fn test_get_basename() {
-        #[derive(Debug)]
-        struct F {
-            i: &'static str,
-            o: &'static str,
-        }
         let path_list = [
-            F {
-                i: "/root",
-                o: "root",
-            },
-            F {
-                i: "/root/",
-                o: "root",
-            },
-            F {
-                i: "/root/../dev",
-                o: "dev",
-            },
-            F {
-                i: "/does/not/exist",
-                o: "exist",
-            },
-            F {
-                i: "/does/not/./exist",
-                o: "exist",
-            },
-            F {
-                i: "/does/not/../NOT/exist",
-                o: "exist",
-            },
+            ("/root", "root"),
+            ("/root/", "root"),
+            ("/root/../dev", "dev"),
+            ("/does/not/exist", "exist"),
+            ("/does/not/./exist", "exist"),
+            ("/does/not/../NOT/exist", "exist"),
         ];
         for x in &path_list {
-            match super::get_basename(x.i) {
-                Ok(v) => assert_eq!(v, x.o),
+            match super::get_basename(x.0) {
+                Ok(v) => assert_eq!(v, x.1),
                 Err(e) => panic!("{e} {x:?}"),
             }
         }
@@ -377,51 +291,22 @@ mod tests {
 
     #[test]
     fn test_is_abspath() {
-        #[derive(Debug)]
-        struct F {
-            i: &'static str,
-            o: bool,
-        }
         let path_list = [
-            F { i: "/", o: true },
-            F {
-                i: "/////",
-                o: true,
-            },
-            F { i: "/..", o: true },
-            F { i: "/../", o: true },
-            F {
-                i: "/root",
-                o: true,
-            },
-            F {
-                i: "/root/",
-                o: true,
-            },
-            F {
-                i: "/root/..",
-                o: true,
-            },
-            F {
-                i: "/root/../dev",
-                o: true,
-            },
-            F {
-                i: "/does/not/exist",
-                o: true,
-            },
-            F {
-                i: "/does/not/../NOT/exist",
-                o: true,
-            },
-            F { i: "xxx", o: false },
-            F {
-                i: "does/not/exist",
-                o: false,
-            },
+            ("/", true),
+            ("/////", true),
+            ("/..", true),
+            ("/../", true),
+            ("/root", true),
+            ("/root/", true),
+            ("/root/..", true),
+            ("/root/../dev", true),
+            ("/does/not/exist", true),
+            ("/does/not/../NOT/exist", true),
+            ("xxx", false),
+            ("does/not/exist", false),
         ];
         for x in &path_list {
-            assert_eq!(super::is_abspath(x.i), x.o, "{x:?}");
+            assert_eq!(super::is_abspath(x.0), x.1, "{x:?}");
         }
     }
 
@@ -477,38 +362,16 @@ mod tests {
 
     #[test]
     fn test_get_file_type_string() {
-        struct F {
-            t: super::FileType,
-            s: &'static str,
-        }
         let file_type_list = [
-            F {
-                t: super::FileType::Dir,
-                s: "directory",
-            },
-            F {
-                t: super::FileType::Reg,
-                s: "regular file",
-            },
-            F {
-                t: super::FileType::Device,
-                s: "device",
-            },
-            F {
-                t: super::FileType::Symlink,
-                s: "symlink",
-            },
-            F {
-                t: super::FileType::Unsupported,
-                s: "unsupported file",
-            },
-            F {
-                t: super::FileType::Invalid,
-                s: "invalid file",
-            },
+            (super::FileType::Dir, "directory"),
+            (super::FileType::Reg, "regular file"),
+            (super::FileType::Device, "device"),
+            (super::FileType::Symlink, "symlink"),
+            (super::FileType::Unsupported, "unsupported file"),
+            (super::FileType::Invalid, "invalid file"),
         ];
         for x in &file_type_list {
-            assert_eq!(x.t.as_str(), x.s);
+            assert_eq!(x.0.as_str(), x.1);
         }
     }
 
@@ -607,45 +470,16 @@ mod tests {
 
     #[test]
     fn test_get_num_format_string() {
-        struct F {
-            n: usize,
-            msg: &'static str,
-            result: &'static str,
-        }
         let num_format_list = [
-            F {
-                n: 0,
-                msg: "",
-                result: "???",
-            },
-            F {
-                n: 1,
-                msg: "",
-                result: "???",
-            },
-            F {
-                n: 2,
-                msg: "",
-                result: "???",
-            },
-            F {
-                n: 0,
-                msg: "file",
-                result: "0 file",
-            },
-            F {
-                n: 1,
-                msg: "file",
-                result: "1 file",
-            },
-            F {
-                n: 2,
-                msg: "file",
-                result: "2 files",
-            },
+            (0, "", "???"),
+            (1, "", "???"),
+            (2, "", "???"),
+            (0, "file", "0 file"),
+            (1, "file", "1 file"),
+            (2, "file", "2 files"),
         ];
         for x in &num_format_list {
-            assert_eq!(super::get_num_format_string(x.n, x.msg), x.result);
+            assert_eq!(super::get_num_format_string(x.0, x.1), x.2);
         }
     }
 }

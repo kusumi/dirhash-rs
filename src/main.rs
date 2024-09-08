@@ -17,7 +17,7 @@ mod squash2;
 #[cfg(feature = "squash2")]
 use squash2::{Squash, SQUASH_LABEL, SQUASH_VERSION};
 
-const VERSION: [i32; 3] = [0, 4, 5];
+const VERSION: [i32; 3] = [0, 4, 6];
 
 #[derive(Debug)]
 struct Opt {
@@ -201,7 +201,7 @@ fn main() {
         if let Err(e) = dir::print_input(x, &opt) {
             panic!("{e}");
         }
-        if opt.verbose && !args.is_empty() && i != args.len() - 1 {
+        if opt.verbose && i != args.len() - 1 {
             println!();
         }
     }
